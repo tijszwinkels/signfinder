@@ -38,7 +38,7 @@
 #include "lib/histogramtool/histogramTool.h"
 #include "lib/bloblib/Blob.h"
 #include "lib/bloblib/BlobResult.h"
-//#include "TestHandler.h"
+#include "TestHandler.h"
 
 using namespace std;
 
@@ -47,29 +47,10 @@ const int WINDOWX = 1024;
 const int WINDOWY = 768;
 
 int _curFile=0;
+int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0;
 
 CvHistogram* _posHist;
 CvHistogram* _negHist;
-
-#if 0 // Work In Progress
-bool isLabeledBlob(CBlob& currentBlob, char* file)
-{
-	// See if we can find a mask for this file.
-	string maskfile(file);
-	IplImage* label = cvLoadImage((maskfile+"_mask.png").c_str());
-	if (label)	
-	{
-		// We want to fill a convex hull here.
-		//IplImage classification
-		// Fill a mask for the current blob
-		currentBlob->FillBlob(img,CV_RGB(0,0,0));
-
-		cvReleaseImage(&label);
-	}
-	else
-		return false;
-}
-#endif
 
 /* Filter Blobs*/
 CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
@@ -127,7 +108,26 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 			cout << "  Accepted\n";
 			result.AddBlob(currentBlob);
 		}
+
 	}
+	
+	// Compare with labeled.
+	//CBlobResult correct, incorrect;
+	int fp=0, fn=0, multdetect = 0;
+	bool success = checkLabeledBlobs(result,file,fp,fn,multdetect);//,&correct,&incorrect);
+	//for (int i = 0; i < correct.GetNumBlobs(); ++i )
+	//	fillConvexHull(img,correct.GetBlob(i),CV_RGB(0,255,0));
+	//for (int i = 0; i < incorrect.GetNumBlobs(); ++i )
+	//	fillConvexHull(img,incorrect.GetBlob(i),CV_RGB(255,0,0));
+	printf("For this image, we encountered %d false positives, %d undetected signs, and %d multiple detections\n",fp,fn,multdetect);
+	if (success)
+	{
+		++_imagesChecked;
+		_fp += fp;
+		_fn += fn;
+		_multDetect += multdetect;
+	}	
+
 
 	return result;
 }
@@ -168,12 +168,6 @@ void processFile(char* file)
 	//cout << "Result saved as " << matchedfile+"_matched.jpg" << endl;
 
 	// Perform blob detection.
-	// invert mask
-	//cvNot(histMatched,histMatched);
-	/* Hoe werkt deze threshold? Ik ga er vanuit dat hij alles onder deze waarde 0 maakt.
- 	 * dat lijkt te kloppen, want als ik 255 invul wordt alles zwart.
- 	 * Probleem: Waarom extract hij blobs van de background, ook als ik alles inverteer.*/
-	// solved: ook van de background worden blobs extracted.
 	CBlobResult blobs = CBlobResult( histMatched, NULL, 0, false );
 	CBlobResult oldblobs = blobs;
 	blobs = classifyBlobs(blobs,overlay, file);
@@ -181,15 +175,8 @@ void processFile(char* file)
 
 	cout << "Classification: I think there are " << blobs.GetNumBlobs()  << " blue signs in this image" << endl << endl;
 	
-	/*
-	// get biggest blob.
-	CBlob biggestBlob;
-	blobs.GetNthBlob( CBlobGetArea(), 1, biggestBlob );
-	biggestBlob.FillBlob(overlay, CV_RGB(0,0,255));
-	*/
-
 	CBlob* currentBlob = NULL;
-	
+
 	// Color the blobs
 	for (int i = 0; i < blobs.GetNumBlobs(); ++i )
 	{
@@ -264,6 +251,11 @@ void cleanup()
 	cvReleaseHist(&_negHist);
 	_posHist = NULL;
 	_negHist = NULL;
+
+	if (_imagesChecked)
+	{
+		printf("In %d images we encountered %d false positives, %d false negatives, and %d multiple detections\n",_imagesChecked,_fp,_fn,_multDetect);
+	}
 }
 
 int main(int argc, char** argv)
