@@ -11,7 +11,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is maskMaker.
+ * The Original Code is TestHandler.cpp .
  *
  * The Initial Developer of the Original Code is Tijs Zwinkels.
  * Portions created by the Initial Developer are Copyright (C) 2009
@@ -35,7 +35,10 @@
 
 
 #include <stdio.h>
+#include <iostream>
 #include "TestHandler.h"
+
+using namespace std;
 
 /** Given a classifier-estimated mask and a known-correct labeled mask,
  *  this function computes the true positive and false positive fraction relative to the label:
@@ -78,15 +81,118 @@ double compareMasks(IplImage* estimation, IplImage* label, double* _fp)
 	return tp;
 }
 
-bool blobCorrect(IplImage* blob, IplImage* label,double numBlobs)
+bool blobCorrect(IplImage* blob, IplImage* label, double numBlobs = 1)
 {
 	double fp;
 	double tp = compareMasks(blob,label,&fp);
 
-	if ((tp * numBlobs) > 0.9) // At least 90% of the label is matched.
-		if (fp < (0.5 / numBlobs)) // the 'false positive' area is at most 50% bigger than the label.
+	if ((tp * numBlobs) > 0.60) // At least 90% of the label is matched.
+		if (fp < (0.25 / numBlobs)) // the 'false positive' area is at most 25% bigger than the label.
 			return true;
 
 	return false;
+}
+
+
+/**
+ * Fills an image with a convex hull as described by a CvSeq
+ */
+void fillConvexHull(IplImage* img, CvSeq* hull, CvScalar color)
+{
+	CvPoint points[hull->total];
+	for (int j=0; j< hull->total; ++j)
+		points[j] = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
+	cvFillConvexPoly(img,points,hull->total,color);
+}
+
+/**
+ * Fills an image with a convex hull around the pixels in a blob.
+ */
+ // FIXME: Memory mangement for CvSeq.
+void fillConvexHull(IplImage* img, CBlob* blob, CvScalar color)
+{
+	CvSeq* hull;
+        blob->GetConvexHull(&hull);
+	fillConvexHull(img,hull,color);
+}
+
+
+/* This function judges whether detected blobs corresponds with one of the known-correct labeled area's */
+// FIXME: Things go wrong if detection image has a different size than the mask.
+bool checkLabeledBlobs(CBlobResult& detectedBlobs, char* file, int& fp, int& fn, int& multipleDetections, CBlobResult* correctBlobsOut, CBlobResult* incorrectBlobsOut)
+{
+	// See if we can find a mask for this file.
+        string maskfile(file);
+        IplImage* labeledMask = cvLoadImage((maskfile+"_mask.png").c_str());
+	if (!labeledMask)
+	{
+		cerr << "Warning:: Couldn't open mask " << maskfile << endl;
+		return false;
+	}
+
+	// Detect the blobs in the mask.
+        IplImage* labeledMaskbw = cvCreateImage(cvGetSize(labeledMask), IPL_DEPTH_8U, 1);
+	cvCvtColor(labeledMask, labeledMaskbw, CV_RGB2GRAY);
+	CBlobResult maskblobs = CBlobResult( labeledMaskbw, NULL, 0, false );
+
+	// filter blobs 
+	maskblobs.Filter( maskblobs , B_EXCLUDE, CBlobGetArea(), B_LESS, (labeledMask->height*labeledMask->width) / 1000 ); 
+        // Blobs not in contact with sides of image.
+        maskblobs.Filter( maskblobs, B_EXCLUDE, CBlobGetMinX(), B_EQUAL, 0);
+        maskblobs.Filter( maskblobs, B_EXCLUDE, CBlobGetMaxX(), B_EQUAL, labeledMask->width-1);
+        maskblobs.Filter( maskblobs, B_EXCLUDE, CBlobGetMinY(), B_EQUAL, 0);
+        maskblobs.Filter( maskblobs, B_EXCLUDE, CBlobGetMaxY(), B_EQUAL, labeledMask->height-1);
+
+	int correctMaskBlobs[maskblobs.GetNumBlobs()];
+	for (int i=0; i<maskblobs.GetNumBlobs(); ++i)
+		correctMaskBlobs[i]=0;
+        IplImage* detectedMask = cvCreateImage(cvGetSize(labeledMask), IPL_DEPTH_8U, 3);
+
+	// Iterate through each of the blobs in each of the mask, to see if they correspond.
+	for (int detectedBlobI = 0; detectedBlobI < detectedBlobs.GetNumBlobs(); ++detectedBlobI)
+	{
+		bool blobFound = false;
+		for (int maskBlobI = 0; maskBlobI < maskblobs.GetNumBlobs(); ++maskBlobI)
+		{
+			// fill a mask for the detected blob by filling the convex hull.
+			cvSet(detectedMask,cvScalar(0,0,0));
+			fillConvexHull(detectedMask,detectedBlobs.GetBlob(detectedBlobI),CV_RGB(255,255,255));
+
+			// fill a mask for the labeled blob by filling the convex hull, we're re-using the labeledMask.
+			cvSet(labeledMask,cvScalar(0,0,0));
+			fillConvexHull(labeledMask,maskblobs.GetBlob(maskBlobI),CV_RGB(255,255,255));
+						
+			// check for correspondence.
+			if (blobCorrect(detectedMask, labeledMask))
+			{
+				blobFound = true;
+				++correctMaskBlobs[maskBlobI];
+				if (correctBlobsOut)
+					correctBlobsOut->AddBlob(detectedBlobs.GetBlob(detectedBlobI));
+			}
+		}
+		
+		if ((!blobFound) && incorrectBlobsOut)
+			incorrectBlobsOut->AddBlob(detectedBlobs.GetBlob(detectedBlobI));
+	}
+
+	int correctMaskBlobsCnt = 0;
+	int correctDetectedBlobsSum = 0;
+	// Calculate false-positives and false-negatives.
+	for (int i=0; i<maskblobs.GetNumBlobs(); ++i)
+	{
+		correctDetectedBlobsSum += correctMaskBlobs[i];
+		if (correctMaskBlobs[i])
+			++correctMaskBlobsCnt;
+	}
+	
+	multipleDetections = correctDetectedBlobsSum - correctMaskBlobsCnt;	
+	fp = detectedBlobs.GetNumBlobs() - correctDetectedBlobsSum;
+	fn = maskblobs.GetNumBlobs() - correctMaskBlobsCnt;	
+
+	// Cleanup
+	cvReleaseImage(&detectedMask);
+	cvReleaseImage(&labeledMaskbw);
+	return true;
 }
 

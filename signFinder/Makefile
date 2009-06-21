@@ -3,9 +3,9 @@ CFLAGS = -Wall -g -Iopencv/ # -DSHOWIMAGES
 LDFLAGS = -lcv -lhighgui 
 
 TARGETS = signFinder tester
-GENOBJ = lib/bloblib/libblob.a lib/histogramtool/histogramTool.o
+GENOBJ = TestHandler.o lib/bloblib/libblob.a lib/histogramtool/histogramTool.o 
 SIGNOBJECTS = signFinder.o $(GENOBJ) 
-TESTOBJECTS = TestHandler.o tester.o $(GENOBJ) 
+TESTOBJECTS = tester.o $(GENOBJ) 
 
 all: $(TARGETS)
 
