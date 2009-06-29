@@ -1,0 +1,45 @@
+     signFinder - finds dutch street signs in pictures
+
+Usage:
+     signFinder <image-file.jpg ...>
+
+Description:
+     This program tries to find dutch street signs in image files.
+     Original images with marked street-signs are written to <filename>_result.jpg
+     Additional images are written as well, showing the different stages of the 
+     process.
+
+Internals:
+     Street-signs are detected as following:
+     * Histogram-matching is used to mark the pixels with a distinct blue street-sign color.
+       The positive and negative sample histograms are stored in the posHist.hist and negHist.hist files.
+     * Blob detection is employed to segment connected regions of blue pixels into blobs.
+     * Blobs with a smaller are than 1/400th of the image and blobs touching the side are pruned. 
+     * Statistics are generated over the blobs. 
+       currently: area, roughness, x/y ratio, width / height ratio, orientation, rougness and 'squareness'
+     * Blobs are accepted and rejected based on fixed decision boundaries.
+     * A convex hull is drawn around positively classified blobs for the result image.
+
+Output:
+     * For each detected blob, its statistics and whether it's accepted or rejected is displayed on stdout. 
+
+Performance Measurement:
+     * _mask.png images contain hand-labeled binary mask-images, marking where street signs are present
+       in given Images. These masks can be made using the 'maskMaker' program, located elsewhere in this
+       package.
+     * If the program can find a _mask.png file for an image, it will automatically try to judge
+       whether classification was successfull. false detections, undetected signs, and multiple detections
+       of a single sign are reported to the stdout. On termination of the program, aggregate statistics are
+       displayed.
+
+Compile:
+     type 'make'
+     The OpenCV Open Computer Vision library is a requirement.
+     http://opencvlibrary.sourceforge.net/ 	
+
+License:
+     All files in this directory are licensed under a triple MPL 1.1/GPL 2.0/LGPL 2.1 license.
+     files in the subdirectories might have different licenses.
+
+Available on: http://code.google.com/p/signfinder/ 
+06/29/2009 - Tijs Zwinkels
