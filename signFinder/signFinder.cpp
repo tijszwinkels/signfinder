@@ -47,7 +47,7 @@ const int WINDOWX = 1024;
 const int WINDOWY = 768;
 
 int _curFile=0;
-int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0;
+int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0, _imagesErr = 0;
 
 CvHistogram* _posHist;
 CvHistogram* _negHist;
@@ -119,13 +119,15 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 	//	fillConvexHull(img,correct.GetBlob(i),CV_RGB(0,255,0));
 	//for (int i = 0; i < incorrect.GetNumBlobs(); ++i )
 	//	fillConvexHull(img,incorrect.GetBlob(i),CV_RGB(255,0,0));
-	printf("For this image, we encountered %d false positives, %d undetected signs, and %d multiple detections\n",fp,fn,multdetect);
 	if (success)
 	{
+		printf("For this image, we encountered %d false positives, %d undetected signs, and %d multiple detections\n",fp,fn,multdetect);
 		++_imagesChecked;
 		_fp += fp;
 		_fn += fn;
 		_multDetect += multdetect;
+		if (fp || fn || multdetect)
+			++_imagesErr;
 	}	
 
 
@@ -255,6 +257,7 @@ void cleanup()
 	if (_imagesChecked)
 	{
 		printf("In %d images we encountered %d false positives, %d false negatives, and %d multiple detections\n",_imagesChecked,_fp,_fn,_multDetect);
+		printf("%f %% of all images was processed correctly in its entirety\n", 100 - (((double)_imagesErr /(double) _imagesChecked)) * 100.);
 	}
 }
 
