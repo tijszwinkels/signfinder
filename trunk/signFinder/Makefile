@@ -2,10 +2,11 @@ CXX = g++
 CFLAGS = -Wall -g -Iopencv/ # -DSHOWIMAGES
 LDFLAGS = -lcv -lhighgui 
 
-TARGETS = signFinder tester
+TARGETS = signFinder tester trainer
 GENOBJ = TestHandler.o lib/bloblib/libblob.a lib/histogramtool/histogramTool.o 
 SIGNOBJECTS = signFinder.o $(GENOBJ) 
 TESTOBJECTS = tester.o $(GENOBJ) 
+TRAINOBJECTS = trainer.o lib/histogramtool/histogramTool.o
 
 all: $(TARGETS)
 
@@ -18,8 +19,10 @@ signFinder: $(SIGNOBJECTS)
 tester: $(TESTOBJECTS) 
 	$(CXX) $(CFLAGS) $(TESTOBJECTS) $(LDFLAGS) -o $@
 
+trainer: $(TRAINOBJECTS) 
+	$(CXX) $(CFLAGS) $(TRAINOBJECTS) $(LDFLAGS) -o $@
 .cpp.o:
 	$(CXX) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm $(SIGNOBJECTS) $(TESTOBJECTS) $(TARGETS)
+	rm $(SIGNOBJECTS) $(TESTOBJECTS) $(TRAINOBJECTS) $(TARGETS)

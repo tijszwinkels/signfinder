@@ -555,14 +555,21 @@ CvHistogram* calculateNegHistogram(CvMat* in_, CvMat* mask, int dim, int code)
 	// Tijs hack
 	// we invert the mask in-place.
 	cvNot(mask,mask);
-	/*for(y=0;y<height;y++)
-			for(x=0;x<width;x++) 
-				for(c=0;c<channels;c++)
-    					mask->data[i*step+j*channels+k]=255-mask->data[i*step+j*channels+k];*/
-
 	return calculateHistogram(in_, mask, dim, code);
 
 }
+
+// Tijs
+CvHistogram* calculateHistogram(IplImage* in_, IplImage* mask_, int dim, int code)
+{
+	CvMat in = cvMat(in_->height,in_->width,CV_8UC3);
+	CvMat mask = cvMat(in_->height,in_->width,CV_8UC1);
+	in = *(cvGetMat(in_, &in));
+	mask = *(cvGetMat(mask_,&mask));
+	return calculateHistogram(&in, &mask,dim,code);
+
+}
+
 CvHistogram* calculateHistogram(CvMat* in_, CvMat* mask, int dim, int code)
 {
 
