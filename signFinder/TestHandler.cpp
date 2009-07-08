@@ -44,7 +44,7 @@ using namespace std;
  *  this function computes the true positive and false positive fraction relative to the label:
  *  What part of the label is recognized, and how much is recognizes that is not part of the label, relative to the surface of the label. 
  *
- *  @param _fp surface of false-positives / surface of known-correct label
+ *  @param _fp surface of false-positives 
  *  @return The fraction of the known-correct label that was marked a positive.
  */
 double compareMasks(IplImage* estimation, IplImage* label, double* _fp)
@@ -66,7 +66,7 @@ double compareMasks(IplImage* estimation, IplImage* label, double* _fp)
 	double estimationSurface = cvSum(estimation).val[0] / 255. ;
 	double tpSurface = cvSum(intersection).val[0] / 255.;
 	double tp = tpSurface / labelSurface; 
-	double fp = (estimationSurface - tpSurface) / labelSurface;
+	double fp = (estimationSurface - tpSurface) / (label->width * label->height);
 
 	printf ("labelSurface: %f, estimationSurface: %f, tpSurface: %f, tp: %f, fp: %f\n",labelSurface, estimationSurface, tpSurface, tp, fp);
 
@@ -85,6 +85,11 @@ bool blobCorrect(IplImage* blob, IplImage* label, double numBlobs = 1)
 {
 	double fp;
 	double tp = compareMasks(blob,label,&fp);
+
+	// correct the false-positive for the surface of the estimated surface.
+	// or: 'How much more than the area that should be detected is detected'.
+	double labelSurface = cvSum(label).val[0] / 255.;
+	fp = fp * (label->width * label->height) / labelSurface;
 
 	if ((tp * numBlobs) > 0.60) // At least 90% of the label is matched.
 		if (fp < (0.25 / numBlobs)) // the 'false positive' area is at most 25% bigger than the label.

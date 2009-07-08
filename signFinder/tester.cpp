@@ -35,7 +35,9 @@
 
 
 #include <iostream>
+#include <fstream>
 #include <deque>
+#include <map>
 #include "lib/histogramtool/histogramTool.h"
 #include "TestHandler.h"
 //#include "lib/bloblib/Blob.h"
@@ -43,7 +45,14 @@
 
 using namespace std;
 
-const double HISTTHRESHOLD = 0.0001;
+double HISTTHRESHOLD = 0.2;
+
+#define ROC
+const double minThr = 0;
+const double maxThr = 5;
+const double measurements = 200;
+const double exponent = 1.1; 
+
 const int WINDOWX = 1600;
 const int WINDOWY = 1200;
 
@@ -51,8 +60,14 @@ int _curFile=0;
 
 CvHistogram* _posHist;
 CvHistogram* _negHist;
-deque<double> _tp;
-deque<double> _fp;
+
+struct RocColItem {
+	deque<double> tp;
+	deque<double> fp;
+};
+
+typedef map<double,RocColItem> RocMap;
+RocMap rocmap;
 
 void processFile(char* file)
 {
@@ -77,51 +92,82 @@ void processFile(char* file)
 	// return mask of images that have been detected.
 	CvMat* imgMat = cvCreateMatHeader(img->height, img->width,CV_8UC3);
 	imgMat = cvGetMat(img,imgMat);
-	IplImage* histMatched = skinDetectBayes(imgMat,_posHist,_negHist,HISTTHRESHOLD); 
-	IplImage* result = cvCreateImage(cvGetSize(histMatched), IPL_DEPTH_8U, 3);
-	cvCvtColor(histMatched, result, CV_GRAY2RGB);
 
-	// Compare results we known-correct mask.
-	double fp;
-	double tp = compareMasks(result,label,&fp);
-	printf("**** file: %s, tp: %f, fp: %f\n",file,tp,fp);
-	_tp.push_back(tp);
-	_fp.push_back(fp);	
+	IplImage* histMatched, result;
+#ifdef ROC
+	double minStep = (maxThr - minThr) / pow(exponent,measurements);
+	for (HISTTHRESHOLD=minThr; HISTTHRESHOLD<maxThr; HISTTHRESHOLD += minStep )
+	{
+		minStep *= exponent;
+#endif
+		IplImage* histMatched = skinDetectBayes(imgMat,_posHist,_negHist,HISTTHRESHOLD); 
+		IplImage* result = cvCreateImage(cvGetSize(histMatched), IPL_DEPTH_8U, 3);
+		cvCvtColor(histMatched, result, CV_GRAY2RGB);
+
+		// Compare results with known-correct mask.
+		double fp;
+		double tp = compareMasks(result,label,&fp);
+		printf("**** file: %s,thr: %f, tp: %f, fp: %f\n",file,HISTTHRESHOLD, tp,fp);
+		// Add the results to the ROC-curve.
+		//rocmap[HISTTHRESHOLD].threshold = HISTTHRESHOLD;
+		rocmap[HISTTHRESHOLD].tp.push_back(tp);
+		rocmap[HISTTHRESHOLD].fp.push_back(fp);
+
+	cvReleaseImage(&histMatched);
+	cvReleaseImage(&result);
+#ifdef ROC
+	}
+#endif
+
 
 	// Cleanup
 	cvReleaseMatHeader(&imgMat);
 	cvReleaseImage(&img);
-	cvReleaseImage(&result);
-	cvReleaseImage(&histMatched);
 	cvReleaseImage(&label);
 }
 
-void printResults(deque<double>& tp, deque<double>& fp)
+void printResults()
 {
-	// calculate averages
-	double tpavg = 0;
-	double fpavg = 0;
-	for (int i=0; i<tp.size(); ++i)
-	{
-		tpavg += tp[i];
-		fpavg += fp[i];
-	}
-	tpavg /= tp.size();
-	fpavg /= tp.size();
+	ofstream ofs("RocCurve.dat");
+	ofs << "# Histogram-matching RoC-curve based on the test-set." << endl;
+	ofs << "# threshold\ttp\tsd\tfp\tsd" << endl << endl;
 
-	// calculate standard deviation
-	double tpdev = 0;
-	double fpdev = 0;	
-	for (int i=0; i<tp.size(); ++i)
+	// Iterate through all elements in the RoC-curve.
+	RocMap::iterator end = rocmap.end();
+	RocMap::iterator it = rocmap.begin();
+	while (it != end)
 	{
-		tpdev += pow(tp[i] - tpavg,2);
-		fpdev += pow(fp[i] - fpavg,2);
-	}
-	tpdev = sqrt(tpdev / tp.size());
-	fpdev = sqrt(fpdev / fp.size());
+		double threshold = it->first;
+		RocColItem cur = it->second;
 
-	printf("\n\nTrue Positives avg: %f, sd: %f\n",tpavg,tpdev);
-	printf("False Positives avg: %f, sd: %f\n",fpavg,fpdev);
+		// calculate averages
+		double tpavg = 0;
+		double fpavg = 0;
+		for (int i=0; i<cur.tp.size(); ++i)
+		{
+			tpavg += cur.tp[i];
+			fpavg += cur.fp[i];
+		}
+		tpavg /= cur.tp.size();
+		fpavg /= cur.tp.size();
+
+		// calculate standard deviation
+		double tpdev = 0;
+		double fpdev = 0;	
+		for (int i=0; i<cur.tp.size(); ++i)
+		{
+			tpdev += pow(cur.tp[i] - tpavg,2);
+			fpdev += pow(cur.fp[i] - fpavg,2);
+		}
+		tpdev = sqrt(tpdev / cur.tp.size());
+		fpdev = sqrt(fpdev / cur.fp.size());
+
+		ofs << threshold << " \t " << tpavg << " \t " << tpdev << " \t " << fpavg << " \t " << fpdev << endl;
+		cout << threshold << " \t " << tpavg << " \t " << tpdev << " \t " << fpavg << " \t " << fpdev << endl;
+		++it;
+	}
+
+	ofs.close();
 }
 
 void init()
@@ -156,7 +202,7 @@ int main(int argc, char** argv)
 	while (++_curFile < argc)
         	processFile(argv[_curFile]);
 
-	printResults(_tp,_fp);
+	printResults();
 	cleanup();
 
 	return 0;
