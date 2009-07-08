@@ -37,6 +37,7 @@ IplImage* backProject(CvMat* yCrCbImg, CvHistogram* hist);
 void bgr2normalizedrgb(IplImage* src_, IplImage* dst_);
 IplImage* convertCvMatToIpl(CvMat* in_, int depth_, int channels_);
 
+CvHistogram* calculateHistogram(IplImage* in_, IplImage* mask_, int dim, int code);
 CvHistogram* calculateHistogram(CvMat* in_, CvMat* mask, int dim, int code);
 CvHistogram* calculateNegHistogram(CvMat* in_, CvMat* mask, int dim, int code);
 
