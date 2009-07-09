@@ -132,10 +132,12 @@ void printResults()
 	ofs << "# Histogram-matching RoC-curve based on the test-set." << endl;
 	ofs << "# threshold\ttp\tsd\tfp\tsd" << endl << endl;
 
+
 	// Iterate through all elements in the RoC-curve.
 	RocMap::iterator end = rocmap.end();
 	RocMap::iterator it = rocmap.begin();
-	while (it != end)
+	double surface = 0, prevTp=1, prevFp=1;
+        while (it != end)
 	{
 		double threshold = it->first;
 		RocColItem cur = it->second;
@@ -162,10 +164,26 @@ void printResults()
 		tpdev = sqrt(tpdev / cur.tp.size());
 		fpdev = sqrt(fpdev / cur.fp.size());
 
+		// write results to file.
 		ofs << threshold << " \t " << tpavg << " \t " << tpdev << " \t " << fpavg << " \t " << fpdev << endl;
 		cout << threshold << " \t " << tpavg << " \t " << tpdev << " \t " << fpavg << " \t " << fpdev << endl;
+
+		// Calculate the surface under the curve.
+		// Warning: Assumes rising threshold / falling tp and fp.
+		double dFp = prevFp - fpavg;
+		double dTp = prevTp - tpavg;
+		surface+= dFp * (tpavg + (0.5*dTp)); // assume linear progress between previous and current measurement.
+	
+		// setup for next iteration.
+		prevTp = tpavg;
+		prevFp = fpavg;
 		++it;
 	}
+	// calculate the surface under the last part of the curve towards tp=0 and fp=0
+	surface += prevFp * (0.5*prevTp);
+
+	cout << "Surface under RoC curve: " << surface << endl;	
+	ofs << endl << "# Surface under RoC curve: " << surface << endl;	
 
 	ofs.close();
 }
