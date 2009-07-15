@@ -42,6 +42,10 @@ using namespace std;
 
 int binsize = 64;
 //int binsize = 32;
+//const int XRES = 1600;
+//const int YRES = 1200;
+const int XRES = 0;
+const int YRES = 0;
 
 int _curFile=0;
 
@@ -58,6 +62,7 @@ void processFile(char* file)
 		cerr << "No mask for file " << file << " skipping..\n";
 		return;	
 	}
+	
 
 	// Load the file.
 	IplImage* img;
@@ -69,18 +74,36 @@ void processFile(char* file)
         }
 	cout << "Processing " << file << endl;
 
+	// resize	
+	IplImage* _mask;
+	IplImage* _img; 
+	if ((XRES) && ((XRES != cvGetSize(img).width) || (YRES != cvGetSize(img).height)))
+	{
+		_mask = cvCreateImage(cvSize(XRES,YRES),IPL_DEPTH_8U,1);
+		_img = cvCreateImage(cvSize(XRES,YRES),IPL_DEPTH_8U,3);
+		cvResize(mask,_mask);
+		cvResize(img,_img);
+		cvReleaseImage(&img);
+		cvReleaseImage(&mask);
+	}
+	else
+	{
+		_mask = mask;
+		_img = img;
+	}
+
 	// Generate positive / negative histograms.
-	CvHistogram* posHist = calculateHistogram(img,mask,binsize,1);
-	cvNot(mask,mask);
-	CvHistogram* negHist = calculateHistogram(img,mask,binsize,1);
+	CvHistogram* posHist = calculateHistogram(_img,_mask,binsize,1);
+	cvNot(_mask,_mask);
+	CvHistogram* negHist = calculateHistogram(_img,_mask,binsize,1);
 
 	// Add histograms to whole.
 	addHistogram(_posHist,posHist);
 	addHistogram(_negHist,negHist);
 	
 	// Cleanup
-	cvReleaseImage(&img);
-	cvReleaseImage(&mask);
+	cvReleaseImage(&_img);
+	cvReleaseImage(&_mask);
 }
 void init()
 {
