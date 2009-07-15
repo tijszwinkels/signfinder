@@ -39,10 +39,13 @@
 #include "lib/bloblib/Blob.h"
 #include "lib/bloblib/BlobResult.h"
 #include "TestHandler.h"
+#include "CornerFinder.h"
 
 using namespace std;
 
-const double HISTTHRESHOLD = 0.2;
+//#define SHOWIMAGES
+
+const double HISTTHRESHOLD = 0.19;
 const int WINDOWX = 1024;
 const int WINDOWY = 768;
 
@@ -59,7 +62,7 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 
 	// Pre-filtering
 	// Surface > 1/400th image surface.
-	blobs.Filter( blobs, B_EXCLUDE, CBlobGetArea(), B_LESS, (img->height*img->width) / 400 );
+	blobs.Filter( blobs, B_EXCLUDE, CBlobGetArea(), B_LESS, (img->height*img->width) / 600 );
 	
 	// Blobs not in contact with sides of image. 
 	blobs.Filter( blobs, B_EXCLUDE, CBlobGetMinX(), B_EQUAL, 0);
@@ -96,7 +99,7 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 			 i,area,width,height,orientation,XYratio,WHratio,roughness,squareness);	
 
 		// Classify
-		if ((squareness < 0.70) || (XYratio < 0.45) || WHratio < 3.) 
+		if ((squareness < 0.70) || (XYratio < 0.45) || WHratio < 2.5) 
 		{
 			cout << "  Rejected\n";
 			// make rejected blobs black.
@@ -133,6 +136,21 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 
 	return result;
 }
+
+IplImage* cutSign(CBlob& blob, IplImage* origImg)
+{
+	// Find the corners with a distance-threshold between corners of 0.75* the height.
+	int numcorners = 4;
+	CvPoint corners[numcorners];
+	CBlobGetMajorAxisLength ma;
+	double height = ma(blob);
+	findCorners(blob,corners,numcorners,height*0.75);
+
+	// Draw yellow circles around the corners.
+	for (int i=0; i<numcorners; ++i)
+		cvCircle(origImg, corners[i],5,CV_RGB(255,255,0),2);	
+}
+
 
 void processFile(char* file)
 {
@@ -192,8 +210,13 @@ void processFile(char* file)
 	// Compute and draw the convex hull of the blobs
 	for (int i = 0; i < blobs.GetNumBlobs(); ++i )
 	{
-		// get the convex hull
+		
+		// cut the signs out.
 		currentBlob = blobs.GetBlob(i);
+		//cutSign(*currentBlob, overlay);
+		cutSign(*currentBlob, result);
+
+		// get the convex hull
 		CvSeq* hull;
 		currentBlob->GetConvexHull(&hull);
 
