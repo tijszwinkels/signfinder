@@ -52,8 +52,10 @@ double compareMasks(IplImage* estimation, IplImage* label, double* _fp)
 	IplImage* compLabel = NULL;
 	IplImage* intersection = cvCreateImage(cvGetSize(estimation), IPL_DEPTH_8U, 3);
 
+	cout << estimation->width << " " << label->width << endl;
+
 	// Resize label to size that the classifier is using.
-	if ((cvGetSize(estimation).width != cvGetSize(label).width) || (cvGetSize(estimation).height != cvGetSize(label).height))
+	if (( estimation->width != label->width ) || ( estimation->height != label->height ))
 	{
 		compLabel = cvCreateImage(cvGetSize(estimation), IPL_DEPTH_8U, 3);
 		cvResize(label,compLabel);
@@ -88,8 +90,12 @@ bool blobCorrect(IplImage* blob, IplImage* label, double numBlobs = 1)
 
 	// correct the false-positive for the surface of the estimated surface.
 	// or: 'How much more than the area that should be detected is detected'.
+	// We are also correcting for when the label has a different size than the image.
 	double labelSurface = cvSum(label).val[0] / 255.;
-	fp = fp * (label->width * label->height) / labelSurface;
+	double sizefact = (label->width*label->height) /  (blob->width * blob->height); // factor that the label is bigger	
+	labelSurface /= sizefact;
+
+	fp = fp * (blob->width * blob->height) / labelSurface;
 
 	if ((tp * numBlobs) > 0.60) // At least 90% of the label is matched.
 		if (fp < (0.25 / numBlobs)) // the 'false positive' area is at most 25% bigger than the label.
@@ -123,8 +129,7 @@ void fillConvexHull(IplImage* img, CBlob* blob, CvScalar color)
 
 
 /* This function judges whether detected blobs corresponds with one of the known-correct labeled area's */
-// FIXME: Things go wrong if detection image has a different size than the mask.
-bool checkLabeledBlobs(CBlobResult& detectedBlobs, char* file, int& fp, int& fn, int& multipleDetections, CBlobResult* correctBlobsOut, CBlobResult* incorrectBlobsOut)
+bool checkLabeledBlobs(CBlobResult& detectedBlobs, IplImage* origImg, char* file, int& fp, int& fn, int& multipleDetections, CBlobResult* correctBlobsOut, CBlobResult* incorrectBlobsOut)
 {
 	// See if we can find a mask for this file.
         string maskfile(file);
@@ -151,7 +156,7 @@ bool checkLabeledBlobs(CBlobResult& detectedBlobs, char* file, int& fp, int& fn,
 	int correctMaskBlobs[maskblobs.GetNumBlobs()];
 	for (int i=0; i<maskblobs.GetNumBlobs(); ++i)
 		correctMaskBlobs[i]=0;
-        IplImage* detectedMask = cvCreateImage(cvGetSize(labeledMask), IPL_DEPTH_8U, 3);
+        IplImage* detectedMask = cvCreateImage(cvGetSize(origImg), IPL_DEPTH_8U, 3);
 
 	// Iterate through each of the blobs in each of the mask, to see if they correspond.
 	for (int detectedBlobI = 0; detectedBlobI < detectedBlobs.GetNumBlobs(); ++detectedBlobI)

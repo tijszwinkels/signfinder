@@ -48,6 +48,12 @@ using namespace std;
 const double HISTTHRESHOLD = 0.19;
 const int WINDOWX = 1024;
 const int WINDOWY = 768;
+const int XRES = 1600;
+const int YRES= 1200;
+//const int XRES = 0; // Don't resize images before processing.
+//const int YRES = 0;
+
+
 
 int _curFile=0;
 int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0, _imagesErr = 0;
@@ -117,7 +123,7 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 	// Compare with labeled.
 	//CBlobResult correct, incorrect;
 	int fp=0, fn=0, multdetect = 0;
-	bool success = checkLabeledBlobs(result,file,fp,fn,multdetect);//,&correct,&incorrect);
+	bool success = checkLabeledBlobs(result,img,file,fp,fn,multdetect);//,&correct,&incorrect);
 	//for (int i = 0; i < correct.GetNumBlobs(); ++i )
 	//	fillConvexHull(img,correct.GetBlob(i),CV_RGB(0,255,0));
 	//for (int i = 0; i < incorrect.GetNumBlobs(); ++i )
@@ -139,29 +145,105 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 
 IplImage* cutSign(CBlob& blob, IplImage* origImg)
 {
+
+ 	// calculate some needed statistics over the blob
+	CBlobGetMajorAxisLength ma;
+	double height = ma(blob);
+
 	// Find the corners with a distance-threshold between corners of 0.75* the height.
 	int numcorners = 4;
 	CvPoint corners[numcorners];
-	CBlobGetMajorAxisLength ma;
-	double height = ma(blob);
 	findCorners(blob,corners,numcorners,height*0.75);
+
+	// calculate some needed constants.
+	double xDiffTop = pointDist(corners[0], corners[1]);
+	double xDiffBottom = pointDist(corners[3], corners[2]);
+
+	// find max and min x and y;
+	double minx = 1000000;
+	double miny = 1000000;
+	double maxx = 0;
+	double maxy = 0;
+	for (int i=0; i<numcorners; ++i)
+	{
+		if (corners[i].x < minx)
+			minx = corners[i].x;
+		if (corners[i].x > maxx)
+			maxx = corners[i].x;
+		if (corners[i].y < miny)
+			miny = corners[i].y;
+		if (corners[i].y > maxy)
+			maxy = corners[i].y;
+	}
+
+	/* Cut the figure out. */
+
+	IplImage* cut = cvCreateImage(cvSize(maxx-minx,maxy-miny), IPL_DEPTH_8U, 3);
+	//CvPoint2D32f center = cvPoint2D32f((minx+maxx)/2,(miny+maxy)/2);
+	// Convert corners to CvPoint2D32f type.
+	CvPoint2D32f cornersf[numcorners];
+	for (int i=0; i<numcorners; ++i)
+		cornersf[i] = cvPointTo32f(corners[i]);		
+
+	// target-points shift (shift=1 for corner 0 is upper-left corner)
+	int shift = 1;
+	if (corners[1].x > corners[3].x) // seems that corner[1] has skipped to the right side (and therefore 3 to the left).
+		shift = 0;
+
+        // target points for perspective correction.
+	CvPoint2D32f cornerstarget[numcorners];
+	cornerstarget[(3+shift)%4] = cvPoint2D32f(0,0);
+	cornerstarget[(0+shift)%4] = cvPoint2D32f(0,cut->height-1);
+	cornerstarget[(1+shift)%4]= cvPoint2D32f(cut->width-1,cut->height-1);
+	cornerstarget[(2+shift)%4] = cvPoint2D32f(cut->width-1,0);
+
+	// Apply perspective correction to the image.
+	CvMat* transmat = cvCreateMat(3, 3, CV_32FC1); // Colums, rows ?
+	transmat = cvGetPerspectiveTransform(cornersf,cornerstarget,transmat);
+	cvWarpPerspective(origImg,cut,transmat);
+	cvReleaseMat(&transmat);
+	
+
+	// Quick comparison to simple cutting.
+	#ifdef SHOWIMAGES
+	cvSetImageROI(origImg,cvRect(minx,miny,maxx - minx, maxy-miny));
+	IplImage* rawcut = cvCreateImage(cvSize(maxx-minx,maxy-miny), IPL_DEPTH_8U, 3);
+		cvShowImage("signFinder",origImg);
+		cvWaitKey(0);
+	#endif
+
+	cvResetImageROI(origImg);
 
 	// Draw yellow circles around the corners.
 	for (int i=0; i<numcorners; ++i)
 		cvCircle(origImg, corners[i],5,CV_RGB(255,255,0),2);	
+	
+	return cut;
+
 }
 
 
 void processFile(char* file)
 {
-	IplImage* img;
-	img = cvLoadImage(file);
-        if (!img)
+	IplImage* _img = cvLoadImage(file);
+        if (!_img)
         {
                 cerr << "Could not load file " << file << endl;
                 exit(1);
         }
 	cout << "Processing " << file << endl;
+
+	// Resize if requested.
+	IplImage* img;
+	if ((XRES) && ((XRES != cvGetSize(_img).width) || (YRES != cvGetSize(_img).height)))
+        {
+                img = cvCreateImage(cvSize(XRES,YRES),IPL_DEPTH_8U,3);
+                cvResize(_img,img);
+                cvReleaseImage(&_img);
+        }
+        else
+                img = _img;
+	
 
 	// return mask of images that have been detected.
 	CvMat* imgMat = cvCreateMatHeader(img->height, img->width,CV_8UC3);
@@ -211,11 +293,18 @@ void processFile(char* file)
 	for (int i = 0; i < blobs.GetNumBlobs(); ++i )
 	{
 		
-		// cut the signs out.
+		// Cut out the street signs, and save them separately.
 		currentBlob = blobs.GetBlob(i);
-		//cutSign(*currentBlob, overlay);
-		cutSign(*currentBlob, result);
-
+		IplImage* cut = cutSign(*currentBlob, result);
+		#ifdef SHOWIMAGES
+		cvShowImage("signFinder",cut);
+		cvWaitKey(0);
+		#endif
+		char signfile[256];   
+		snprintf(signfile, 256, "%s_sign%d.jpg",file, i );  
+		cvSaveImage(signfile,cut);
+		cvReleaseImage(&cut);
+		
 		// get the convex hull
 		CvSeq* hull;
 		currentBlob->GetConvexHull(&hull);
@@ -237,6 +326,8 @@ void processFile(char* file)
 	}
 	#ifdef SHOWIMAGES
 	cvShowImage("signFinder",overlay);
+	cvWaitKey(0);
+	cvShowImage("signFinder",result);
 	cvWaitKey(0);
 	#endif
 
