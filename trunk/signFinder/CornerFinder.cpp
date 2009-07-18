@@ -38,23 +38,71 @@
 #include <iostream>
 #include <math.h>
 #include "CornerFinder.h"
+#include "TestHandler.h"
 
 
 using namespace std;
 
 
-double pointDist(CvPoint& p0, CvPoint& p1)
+/* Find the corners of the convex hull around the blob with the cvGoodFeaturesToTrack function*/
+void findCorners(CBlob& blob, CvPoint* corners, int numCorners, double distThr, double angleThr )
 {
-	return sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2));	
+	CvPoint2D32f f_corners[numCorners];
+	memset(corners,0,sizeof(CvPoint) * numCorners);
+
+	// Fill the convex hull around the blob.
+	IplImage* fill = cvCreateImage(cvSize(blob.MaxX()+10, blob.MaxY()+10),IPL_DEPTH_8U,1);
+	fillConvexHull(fill,&blob,cvScalar(255,0,0,0));	
+
+	//cvShowImage("signFinder",fill);
+	//cvWaitKey(0);
+
+	// Extract the corners.
+	IplImage* eigtmp = cvCreateImage(cvSize(blob.MaxX()+10, blob.MaxY()+10),IPL_DEPTH_32F,1);
+	IplImage* tmp2 = cvCreateImage(cvSize(blob.MaxX()+10, blob.MaxY()+10),IPL_DEPTH_32F,1);
+	int cornersFound = numCorners;
+	cvGoodFeaturesToTrack(fill,eigtmp,tmp2,f_corners,&cornersFound, 0.1,distThr,NULL,9);
+	cout << "Found " << cornersFound << " Corners." << endl;
+
+	//Cleanup
+	cvReleaseImage(&tmp2);
+	cvReleaseImage(&eigtmp);
+	cvReleaseImage(&fill);
+
+	// Convert the detected corners to CvPoints.
+	CvPoint foundcorners[numCorners];
+	for (int i=0; i<numCorners; ++i)
+		foundcorners[i] = cvPointFrom32f(f_corners[i]);
+
+	
+	// Use the convex-hull to order the points counter-clockwise.
+	int corneri = 0;
+	CvSeq* hull;
+        blob.GetConvexHull(&hull);
+        for (int j=0; j< hull->total; ++j) //iterate through hullpoints.
+	{
+        	CvPoint pt = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
+		for (int corner=0; corner < numCorners; ++corner) //iterate through found corners.
+		{
+			CvPoint hullpt = findClosestConvexHullPoint(foundcorners[corner],hull);
+			if ((pt.x == hullpt.x) && (pt.y == hullpt.y))
+				corners[corneri++] = hullpt; // Snap corner to convex hull.
+		}
+	}
+
+	
+	
 }
 
-void findCorners(CBlob& blob, CvPoint* corners, int numCorners, double distThr, double angleThr )
+/* Find corners by finding the points exceeding the angle-threshold in the convex hull*/
+void findCorners_method1(CBlob& blob, CvPoint* corners, int numCorners, double distThr, double angleThr )
 {
 	int cornIndex = 0;
 
 	// Initialize the corner-array.
 	memset(corners,0,sizeof(CvPoint) * numCorners);
 
+	// Iterate through all points of the convex hull around the blob.
         CvSeq* hull;
         blob.GetConvexHull(&hull);
         CvPoint pt0 = **CV_GET_SEQ_ELEM( CvPoint*, hull, hull->total - 1 );
@@ -91,11 +139,22 @@ void findCorners(CBlob& blob, CvPoint* corners, int numCorners, double distThr, 
         }
 }	
 
-/* FIXME:
- * This corner-finder algorithm is simple, and 'just works'. However, it is dependent on parameter tweaking, and is therefore not likely
- * too work in generic circumstances, no to mention for finding arbitrary numbers of corners in other geometrical figures.
- *
- * A nice method for finding corners in convex approximately even-sided geometrical figures, would be to use weighed k-means clustering.
- * Every point could be an element to cluster, with the angle of the convex hull at that point being the weight.
- * Additional intelligence would be needed to retain the order of the corners, though.
- */
+/* Support Functions */
+double pointDist(CvPoint& p0, CvPoint& p1)
+{
+	return sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2));	
+}
+
+/* Return the point in the convex hull, that is closest to the given point */
+CvPoint findClosestConvexHullPoint(CvPoint corner, CvSeq* hull)
+{
+	CvPoint curClosest = cvPoint(1000000,1000000);
+	for (int j=0; j< hull->total; ++j)
+	{
+        	CvPoint hullpt = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
+		if (pointDist(hullpt,corner) < pointDist(curClosest,corner))
+			curClosest = hullpt;
+	}
+	return curClosest;
+	 
+}

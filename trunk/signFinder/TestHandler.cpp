@@ -110,6 +110,7 @@ bool blobCorrect(IplImage* blob, IplImage* label, double numBlobs = 1)
  */
 void fillConvexHull(IplImage* img, CvSeq* hull, CvScalar color)
 {
+	cvSet(img,cvScalar(0,0,0,0));
 	CvPoint points[hull->total];
 	for (int j=0; j< hull->total; ++j)
 		points[j] = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
