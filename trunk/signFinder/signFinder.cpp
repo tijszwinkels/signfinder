@@ -155,32 +155,10 @@ IplImage* cutSign(CBlob& blob, IplImage* origImg)
 	CvPoint corners[numcorners];
 	findCorners(blob,corners,numcorners,height*0.75);
 
-	// calculate some needed constants.
-	double xDiffTop = pointDist(corners[0], corners[1]);
-	double xDiffBottom = pointDist(corners[3], corners[2]);
-
-	// find max and min x and y;
-	double minx = 1000000;
-	double miny = 1000000;
-	double maxx = 0;
-	double maxy = 0;
-	for (int i=0; i<numcorners; ++i)
-	{
-		if (corners[i].x < minx)
-			minx = corners[i].x;
-		if (corners[i].x > maxx)
-			maxx = corners[i].x;
-		if (corners[i].y < miny)
-			miny = corners[i].y;
-		if (corners[i].y > maxy)
-			maxy = corners[i].y;
-	}
-
+	
 	/* Cut the figure out. */
 
-	IplImage* cut = cvCreateImage(cvSize(maxx-minx,maxy-miny), IPL_DEPTH_8U, 3);
-	//CvPoint2D32f center = cvPoint2D32f((minx+maxx)/2,(miny+maxy)/2);
-	// Convert corners to CvPoint2D32f type.
+	// convert corners to CvPoint2D32f.
 	CvPoint2D32f cornersf[numcorners];
 	for (int i=0; i<numcorners; ++i)
 		cornersf[i] = cvPointTo32f(corners[i]);		
@@ -189,6 +167,11 @@ IplImage* cutSign(CBlob& blob, IplImage* origImg)
 	int shift = 1;
 	if (corners[1].x > corners[3].x) // seems that corner[1] has skipped to the right side (and therefore 3 to the left).
 		shift = 0;
+
+	// Create target-image with right size.
+	double xDiffBottom = pointDist(corners[(0+shift)%4], corners[(1+shift)%4]);
+	double yDiffLeft = pointDist(corners[(3+shift)%4], corners[(0+shift)%4]);
+	IplImage* cut = cvCreateImage(cvSize(xDiffBottom,yDiffLeft), IPL_DEPTH_8U, 3);
 
         // target points for perspective correction.
 	CvPoint2D32f cornerstarget[numcorners];
@@ -205,14 +188,15 @@ IplImage* cutSign(CBlob& blob, IplImage* origImg)
 	
 
 	// Quick comparison to simple cutting.
+	/*
 	#ifdef SHOWIMAGES
 	cvSetImageROI(origImg,cvRect(minx,miny,maxx - minx, maxy-miny));
 	IplImage* rawcut = cvCreateImage(cvSize(maxx-minx,maxy-miny), IPL_DEPTH_8U, 3);
 		cvShowImage("signFinder",origImg);
 		cvWaitKey(0);
-	#endif
-
 	cvResetImageROI(origImg);
+	#endif
+	*/
 
 	// Draw yellow circles around the corners.
 	for (int i=0; i<numcorners; ++i)
