@@ -273,7 +273,8 @@ void processFile(char* file)
 		currentBlob->FillBlob(overlay,CV_RGB(rd,g,b));
 	}
 
-	// Compute and draw the convex hull of the blobs
+	// Iterate through the found streetsigns.
+	int prevY = result->height-1;
 	for (int i = 0; i < blobs.GetNumBlobs(); ++i )
 	{
 		
@@ -287,6 +288,15 @@ void processFile(char* file)
 		char signfile[256];   
 		snprintf(signfile, 256, "%s_sign%d.jpg",file, i );  
 		cvSaveImage(signfile,cut);
+
+		// Add the sign to the bottom of the image.
+		prevY -= cut->height;		
+		cvSetImageROI(result,cvRect(0,prevY,cut->width,cut->height));
+		cvCopy(cut,result);
+		cvResetImageROI(result);
+		cvRectangle(result,cvPoint(0,prevY),cvPoint(cut->width,prevY+cut->height),CV_RGB(0,0,0),2);	
+
+		// Cleanup
 		cvReleaseImage(&cut);
 		
 		// get the convex hull
