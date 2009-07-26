@@ -206,6 +206,32 @@ IplImage* cutSign(CBlob& blob, IplImage* origImg)
 
 }
 
+/* If we have the perspective-corrected streetsign, save it as a picture with thresholded leters
+ * for the OCR software.*/
+void processSign(IplImage* sign, char* file, int i)
+{
+	// Convert to greyscale
+	IplImage* grey = cvCreateImage(cvGetSize(sign), IPL_DEPTH_8U, 1);
+	cvCvtColor(sign,grey,CV_RGB2GRAY);
+
+	// Use the histogram-matcher blob detector to segment the letters.
+	CvMat* imgMat = cvCreateMatHeader(sign->height, sign->width,CV_8UC3);
+        imgMat = cvGetMat(sign,imgMat);
+        IplImage* histMatched = skinDetectBayes(imgMat,_posHist,_negHist,HISTTHRESHOLD);
+	cvNot(histMatched,histMatched);
+
+	// Save the image.
+	char signfile[256];   
+	snprintf(signfile, 256, "%s_sign%d.tiff",file, i );  
+	cvSaveImage(signfile,histMatched);
+
+	// Cleanup
+	cvReleaseImage(&grey);
+	cvReleaseMat(&imgMat);
+	cvReleaseImage(&histMatched);
+
+
+}
 
 void processFile(char* file)
 {
@@ -285,10 +311,8 @@ void processFile(char* file)
 		cvShowImage("signFinder",cut);
 		cvWaitKey(0);
 		#endif
-		char signfile[256];   
-		snprintf(signfile, 256, "%s_sign%d.jpg",file, i );  
-		cvSaveImage(signfile,cut);
-
+		processSign(cut,file,i);
+		
 		// Add the sign to the bottom of the image.
 		prevY -= cut->height;		
 		cvSetImageROI(result,cvRect(0,prevY,cut->width,cut->height));
