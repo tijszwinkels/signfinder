@@ -1,5 +1,5 @@
 CXX = g++
-CFLAGS = -Wall -g -Iopencv/ # -DSHOWIMAGES
+CFLAGS = -Wall -Winvalid-pch -g -Iopencv/ # -DSHOWIMAGES
 LDFLAGS = -lcv -lhighgui 
 
 TARGETS = signFinder tester trainer
