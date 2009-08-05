@@ -39,7 +39,7 @@
 #include <deque>
 #include <map>
 #include "lib/histogramtool/histogramTool.h"
-#include "TestHandler.h"
+#include "modules/TestHandler.h"
 //#include "lib/bloblib/Blob.h"
 //#include "lib/bloblib/BlobResult.h"
 

@@ -38,8 +38,9 @@
 #include "lib/histogramtool/histogramTool.h"
 #include "lib/bloblib/Blob.h"
 #include "lib/bloblib/BlobResult.h"
-#include "TestHandler.h"
-#include "CornerFinder.h"
+#include "lib/HierarchicalStore/HierarchicalStore.h"
+#include "modules/TestHandler.h"
+#include "modules/CornerFinder.h"
 
 using namespace std;
 
@@ -235,13 +236,16 @@ void processSign(IplImage* sign, char* file, int i)
 
 void processFile(char* file)
 {
-	IplImage* _img = cvLoadImage(file);
+	//IplImage* _img = cvLoadImage(file);
+	ImageElement imageElement("InputImage",file);
+	IplImage* _img = (IplImage*) imageElement.getElement();
         if (!_img)
         {
                 cerr << "Could not load file " << file << endl;
                 exit(1);
         }
 	cout << "Processing " << file << endl;
+
 
 	// Resize if requested.
 	IplImage* img;
@@ -253,6 +257,7 @@ void processFile(char* file)
         }
         else
                 img = _img;
+	imageElement.setElement(img);
 	
 
 	// return mask of images that have been detected.
