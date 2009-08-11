@@ -41,10 +41,13 @@
 #include "lib/HierarchicalStore/HierarchicalStore.h"
 #include "modules/TestHandler.h"
 #include "modules/CornerFinder.h"
+#include "modules/SignHandler.h"
+#include "OpenSURF/surflib.h"
 
 using namespace std;
 
 //#define SHOWIMAGES
+//#define SURF
 
 const double HISTTHRESHOLD = 0.19;
 const int WINDOWX = 1024;
@@ -61,6 +64,7 @@ int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0, _imagesErr = 0;
 
 CvHistogram* _posHist;
 CvHistogram* _negHist;
+IpVec _surfpoints;
 
 /* Filter Blobs*/
 CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
@@ -144,6 +148,7 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 	return result;
 }
 
+# if 0
 IplImage* cutSign(CBlob& blob, IplImage* origImg)
 {
 
@@ -206,6 +211,7 @@ IplImage* cutSign(CBlob& blob, IplImage* origImg)
 	return cut;
 
 }
+#endif
 
 /* If we have the perspective-corrected streetsign, save it as a picture with thresholded leters
  * for the OCR software.*/
@@ -223,22 +229,39 @@ void processSign(IplImage* sign, char* file, int i)
 
 	// Save the image.
 	char signfile[256];   
-	snprintf(signfile, 256, "%s_sign%d.tiff",file, i );  
-	cvSaveImage(signfile,histMatched);
+	snprintf(signfile, 256, "%s_sign%d.pgm",file, i );  
+	//cvSaveImage(signfile,histMatched);
+	cvSaveImage(signfile,sign);
 
 	// Cleanup
 	cvReleaseImage(&grey);
 	cvReleaseMat(&imgMat);
 	cvReleaseImage(&histMatched);
-
-
 }
 
+void processSurf(IplImage* img)
+{
+	// Detect SURF points in image.
+	IpVec ipts;
+	surfDetDes(img,ipts,false,4,4,2,0.00005);
+	
+	// Match surf points against trained sign database.
+	IpPairVec match;
+	getMatches(ipts,_surfpoints,match);
+
+	// draw matches on the image.
+	for (unsigned int i=0; i<match.size(); ++i)
+		drawPoint(img,match[i].first);
+	
+}
+
+/* Big Ugly 'this function does everything' function. */
 void processFile(char* file)
 {
-	//IplImage* _img = cvLoadImage(file);
-	ImageElement imageElement("InputImage",file);
-	IplImage* _img = (IplImage*) imageElement.getElement();
+	CvMemStorage* mem = cvCreateMemStorage();
+	IplImage* _img = cvLoadImage(file);
+	//ImageElement imageElement("InputImage",file);
+	//IplImage* _img = (IplImage*) imageElement.getElement();
         if (!_img)
         {
                 cerr << "Could not load file " << file << endl;
@@ -257,7 +280,7 @@ void processFile(char* file)
         }
         else
                 img = _img;
-	imageElement.setElement(img);
+	//imageElement.setElement(img);
 	
 
 	// return mask of images that have been detected.
@@ -276,13 +299,18 @@ void processFile(char* file)
 	//cvCvtColor(histMatched, overlay, CV_GRAY2RGB);
 	cvCopy(img,overlay,histMatched);
 	cvCopy(img,result);
-	// blend original image wit result: Keep all pixels in the mask the same, make the rest darker. 
+	// blend original image with overlay: Keep all pixels in the mask the same, make the rest darker. 
 	cvAddWeighted(overlay, 0.90, img, 0.10, 0, overlay);
 
 	// Save histogram-matched image.
 	string matchedfile(file);	
 	cvSaveImage((matchedfile+"_matched.jpg").c_str(),overlay);
 	//cout << "Result saved as " << matchedfile+"_matched.jpg" << endl;
+
+	#ifdef SURF
+	// Perform SURF feature-point detection for features that were detected in the trainset.
+	processSurf(result);
+	#endif	
 
 	// Perform blob detection.
 	CBlobResult blobs = CBlobResult( histMatched, NULL, 0, false );
@@ -308,14 +336,26 @@ void processFile(char* file)
 	int prevY = result->height-1;
 	for (int i = 0; i < blobs.GetNumBlobs(); ++i )
 	{
-		
-		// Cut out the street signs, and save them separately.
+		// Cut out the street signs.
 		currentBlob = blobs.GetBlob(i);
-		IplImage* cut = cutSign(*currentBlob, result);
+
+		// calculate some needed statistics over the blob
+		CBlobGetMajorAxisLength ma;
+		double height = ma(currentBlob);
+
+		// Find the corners with a distance-threshold between corners of 0.75* the height.
+		int numcorners = 4;
+		CvPoint corners[numcorners];
+		findCorners(*currentBlob,corners,numcorners,height*0.75);
+		// Cut the image out with perspective correction.
+		IplImage* cut = cutSign(result, corners, 4, true );
+		//processSurf(cut); // process SURF on the image instead.
 		#ifdef SHOWIMAGES
 		cvShowImage("signFinder",cut);
 		cvWaitKey(0);
 		#endif
+
+		// process and save the sign for OCR.
 		processSign(cut,file,i);
 		
 		// Add the sign to the bottom of the image.
@@ -365,6 +405,7 @@ void processFile(char* file)
 	cvReleaseImage(&overlay);
 	cvReleaseImage(&histMatched);
 	cvReleaseImage(&result);
+	cvReleaseMemStorage(&mem);
 }
 
 
@@ -377,6 +418,10 @@ void init()
 		cerr << "ERROR: posHist.hist and/or negHist.hist histogram failed to load." << endl;
 		exit(1);
 	}
+	#ifdef SURF
+	_surfpoints = loadIpVec("surfkeys.dat");
+	printf("loaded database of %d surf-points\n",_surfpoints.size());
+	#endif	
 
 	#ifdef SHOWIMAGES
 		cvNamedWindow("signFinder",0);

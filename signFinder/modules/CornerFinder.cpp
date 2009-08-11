@@ -43,42 +43,50 @@
 
 using namespace std;
 
-
-/* Find the corners of the convex hull around the blob with the cvGoodFeaturesToTrack function*/
-void findCorners(CBlob& blob, CvPoint* corners, int numCorners, double distThr, double angleThr )
+int findCorners(IplImage* maskImg, CvPoint* corners, int numCorners, double distThr)
 {
 	CvPoint2D32f f_corners[numCorners];
 	memset(corners,0,sizeof(CvPoint) * numCorners);
 
-	// Fill the convex hull around the blob.
-	IplImage* fill = cvCreateImage(cvSize(blob.MaxX()+10, blob.MaxY()+10),IPL_DEPTH_8U,1);
-	fillConvexHull(fill,&blob,cvScalar(255,0,0,0));	
-
-	//cvShowImage("signFinder",fill);
-	//cvWaitKey(0);
-
 	// Extract the corners.
-	IplImage* eigtmp = cvCreateImage(cvSize(blob.MaxX()+10, blob.MaxY()+10),IPL_DEPTH_32F,1);
-	IplImage* tmp2 = cvCreateImage(cvSize(blob.MaxX()+10, blob.MaxY()+10),IPL_DEPTH_32F,1);
+	IplImage* eigtmp = cvCreateImage(cvSize(maskImg->width, maskImg->height),IPL_DEPTH_32F,1);
+	IplImage* tmp2 = cvCreateImage(cvSize(maskImg->width, maskImg->height),IPL_DEPTH_32F,1);
 	int cornersFound = numCorners;
-	cvGoodFeaturesToTrack(fill,eigtmp,tmp2,f_corners,&cornersFound, 0.1,distThr,NULL,9);
+	cvGoodFeaturesToTrack(maskImg,eigtmp,tmp2,f_corners,&cornersFound, 0.1,distThr,NULL,9);
 	cout << "Found " << cornersFound << " Corners." << endl;
 
 	//Cleanup
 	cvReleaseImage(&tmp2);
 	cvReleaseImage(&eigtmp);
-	cvReleaseImage(&fill);
+
+	// Find the upper left point.
+	double mindist = 1000000000;
+	int mindisti = -1;
+	CvPoint2D32f upperLeft = cvPoint2D32f(0,0);
+	//CvPoint2D32f upperLeft = cvPoint2D32f(maskImg->width, maskImg->height);
+	for (int i=0; i<numCorners; ++i)
+		if (pointDist(upperLeft, f_corners[i]) < mindist)
+		{
+			mindist = pointDist(upperLeft, f_corners[i]);
+			mindisti = i;
+			//printf("new minimum distance: %f,%d\n",mindist, mindisti);
+		}
 
 	// Convert the detected corners to CvPoints.
+	// make sure that the upper left corner is at the first position.
 	CvPoint foundcorners[numCorners];
 	for (int i=0; i<numCorners; ++i)
-		foundcorners[i] = cvPointFrom32f(f_corners[i]);
+		foundcorners[i] = cvPointFrom32f(f_corners[(i+mindisti) % numCorners]);
 
-	
-	// Use the convex-hull to order the points counter-clockwise.
+	// create a convex hull of the points.
+	CvMemStorage* storage = cvCreateMemStorage();
+        CvSeq* ptseq = cvCreateSeq( CV_SEQ_KIND_GENERIC|CV_32SC2, sizeof(CvContour), sizeof(CvPoint), storage );
+        for(int i = 0; i < numCorners; i++ )
+		cvSeqPush(ptseq,&(foundcorners[i]));
+	CvSeq* hull = cvConvexHull2( ptseq, 0, CV_COUNTER_CLOCKWISE, 0 );
+
+	// order the points 
 	int corneri = 0;
-	CvSeq* hull;
-        blob.GetConvexHull(&hull);
         for (int j=0; j< hull->total; ++j) //iterate through hullpoints.
 	{
         	CvPoint pt = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
@@ -90,8 +98,21 @@ void findCorners(CBlob& blob, CvPoint* corners, int numCorners, double distThr, 
 		}
 	}
 
-	
-	
+	// Cleanup
+	cvClearMemStorage( storage );
+	return cornersFound;
+}
+
+/* Find the corners of the convex hull around the blob with the cvGoodFeaturesToTrack function*/
+int findCorners(CBlob& blob, CvPoint* corners, int numCorners, double distThr)
+{
+	// Fill the convex hull around the blob.
+	IplImage* fill = cvCreateImage(cvSize(blob.MaxX()+10, blob.MaxY()+10),IPL_DEPTH_8U,1);
+	fillConvexHull(fill,&blob,cvScalar(255,0,0,0));	
+
+	int foundcorners = findCorners(fill, corners, numCorners, distThr);
+	cvReleaseImage(&fill);
+	return foundcorners;
 }
 
 /* Find corners by finding the points exceeding the angle-threshold in the convex hull*/
@@ -143,6 +164,11 @@ void findCorners_method1(CBlob& blob, CvPoint* corners, int numCorners, double d
 double pointDist(CvPoint& p0, CvPoint& p1)
 {
 	return sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2));	
+}
+
+double pointDist(CvPoint2D32f& p0, CvPoint2D32f& p1)
+{
+	return sqrt(pow(p0.x-p1.x,2)+pow(p0.y-p1.y,2));
 }
 
 /* Return the point in the convex hull, that is closest to the given point */
