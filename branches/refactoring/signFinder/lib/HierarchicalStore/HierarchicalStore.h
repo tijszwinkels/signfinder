@@ -205,6 +205,8 @@ vector<HStoreElement*> it2vec(ElementMap::iterator it, ElementMap::iterator end)
 	result.reserve(distance(it, end));	
 	while (it != end)
 		result.push_back(it++->second);
+
+	return result;
 }
 		
 #endif //HSTORE
