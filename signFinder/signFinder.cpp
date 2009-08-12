@@ -42,6 +42,7 @@
 #include "modules/TestHandler.h"
 #include "modules/CornerFinder.h"
 #include "modules/SignHandler.h"
+#include "modules/OCRWrapper.h"
 #include "OpenSURF/surflib.h"
 
 using namespace std;
@@ -60,7 +61,8 @@ const int YRES= 1200;
 
 
 int _curFile=0;
-int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0, _imagesErr = 0;
+int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0, _imagesErr=0; // performance metrics detecting images.
+int _OCRcorrect=0,_signsChecked=0;// performance metrics OCR images.
 
 CvHistogram* _posHist;
 CvHistogram* _negHist;
@@ -148,73 +150,9 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 	return result;
 }
 
-# if 0
-IplImage* cutSign(CBlob& blob, IplImage* origImg)
-{
-
- 	// calculate some needed statistics over the blob
-	CBlobGetMajorAxisLength ma;
-	double height = ma(blob);
-
-	// Find the corners with a distance-threshold between corners of 0.75* the height.
-	int numcorners = 4;
-	CvPoint corners[numcorners];
-	findCorners(blob,corners,numcorners,height*0.75);
-
-	
-	/* Cut the figure out. */
-
-	// convert corners to CvPoint2D32f.
-	CvPoint2D32f cornersf[numcorners];
-	for (int i=0; i<numcorners; ++i)
-		cornersf[i] = cvPointTo32f(corners[i]);		
-
-	// target-points shift (shift=1 for corner 0 is upper-left corner)
-	int shift = 1;
-	if (corners[1].x > corners[3].x) // seems that corner[1] has skipped to the right side (and therefore 3 to the left).
-		shift = 0;
-
-	// Create target-image with right size.
-	double xDiffBottom = pointDist(corners[(0+shift)%4], corners[(1+shift)%4]);
-	double yDiffLeft = pointDist(corners[(3+shift)%4], corners[(0+shift)%4]);
-	IplImage* cut = cvCreateImage(cvSize(xDiffBottom,yDiffLeft), IPL_DEPTH_8U, 3);
-
-        // target points for perspective correction.
-	CvPoint2D32f cornerstarget[numcorners];
-	cornerstarget[(3+shift)%4] = cvPoint2D32f(0,0);
-	cornerstarget[(0+shift)%4] = cvPoint2D32f(0,cut->height-1);
-	cornerstarget[(1+shift)%4]= cvPoint2D32f(cut->width-1,cut->height-1);
-	cornerstarget[(2+shift)%4] = cvPoint2D32f(cut->width-1,0);
-
-	// Apply perspective correction to the image.
-	CvMat* transmat = cvCreateMat(3, 3, CV_32FC1); // Colums, rows ?
-	transmat = cvGetPerspectiveTransform(cornersf,cornerstarget,transmat);
-	cvWarpPerspective(origImg,cut,transmat);
-	cvReleaseMat(&transmat);
-	
-
-	// Quick comparison to simple cutting.
-	/*
-	#ifdef SHOWIMAGES
-	cvSetImageROI(origImg,cvRect(minx,miny,maxx - minx, maxy-miny));
-	IplImage* rawcut = cvCreateImage(cvSize(maxx-minx,maxy-miny), IPL_DEPTH_8U, 3);
-		cvShowImage("signFinder",origImg);
-		cvWaitKey(0);
-	cvResetImageROI(origImg);
-	#endif
-	*/
-
-	// Draw yellow circles around the corners.
-	for (int i=0; i<numcorners; ++i)
-		cvCircle(origImg, corners[i],5,CV_RGB(255,255,0),2);	
-	
-	return cut;
-
-}
-#endif
-
 /* If we have the perspective-corrected streetsign, save it as a picture with thresholded leters
  * for the OCR software.*/
+#if 0
 void processSign(IplImage* sign, char* file, int i)
 {
 	// Convert to greyscale
@@ -238,6 +176,7 @@ void processSign(IplImage* sign, char* file, int i)
 	cvReleaseMat(&imgMat);
 	cvReleaseImage(&histMatched);
 }
+#endif
 
 void processSurf(IplImage* img)
 {
@@ -355,9 +294,18 @@ void processFile(char* file)
 		cvWaitKey(0);
 		#endif
 
-		// process and save the sign for OCR.
-		processSign(cut,file,i);
-		
+		// OCR sign, and generate performance metrics.
+		string text = extractText(cut,_posHist, _negHist);	
+		cout << "---------------- Reading streetsign: " << text << endl;
+		int distance = compareText(text,file);
+		if (distance != -1)
+		{
+			cout << "----- edit distance to label: " << distance << endl;
+			++_signsChecked;
+			if (distance == 0)
+				++_OCRcorrect;
+		}
+	
 		// Add the sign to the bottom of the image.
 		prevY -= cut->height;		
 		cvSetImageROI(result,cvRect(0,prevY,cut->width,cut->height));
@@ -440,6 +388,10 @@ void cleanup()
 	{
 		printf("In %d images we encountered %d false positives, %d false negatives, and %d multiple detections\n",_imagesChecked,_fp,_fn,_multDetect);
 		printf("%f %% of all images was processed correctly in its entirety\n", 100 - (((double)_imagesErr /(double) _imagesChecked)) * 100.);
+	}
+	if (_signsChecked)
+	{
+		printf("%d out of %d signs, which is %f %%, was OCRed entirely correctly\n",_OCRcorrect,_signsChecked, (((double)_OCRcorrect /(double) _signsChecked)) * 100.);
 	}
 }
 
