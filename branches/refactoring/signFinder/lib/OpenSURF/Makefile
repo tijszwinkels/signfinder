@@ -12,16 +12,17 @@ SUFFIXES = .cpp .o
 
 # Name of the main program
 PROG  = surf
-LIB = libopensurf.a
+LIB   = libopensurf.a
 
 # Object files .o necessary to build the main program
 OBJS  = fasthessian.o integral.o surf.o utils.o ipoint.o
+EXEOBJ= main.o
  
 all: $(PROG) $(LIB)
 
 # Compilation and link
-$(PROG): $(OBJS) main.o
-	$(CC) $(LDFLAGS) -o $(PROG) $(OBJS) main.o $(LDLIBS)
+$(PROG): $(OBJS) $(EXEOBJ)
+	$(CC) $(LDFLAGS) -o $(PROG) $(OBJS) $(EXEOBJ) $(LDLIBS)
 
 $(LIB): $(OBJS)
 	ar ru $(LIB) $(OBJS)
