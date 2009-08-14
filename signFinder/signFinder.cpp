@@ -62,7 +62,7 @@ const int YRES= 1200;
 
 int _curFile=0;
 int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0, _imagesErr=0; // performance metrics detecting images.
-int _OCRcorrect=0,_signsChecked=0;// performance metrics OCR images.
+int _OCRcorrect=0,_signsChecked=0; double _editDist;// performance metrics OCR images.
 
 CvHistogram* _posHist;
 CvHistogram* _negHist;
@@ -288,7 +288,7 @@ void processFile(char* file)
 		findCorners(*currentBlob,corners,numcorners,height*0.75);
 		// Cut the image out with perspective correction.
 		IplImage* cut = cutSign(result, corners, 4, true );
-		//processSurf(cut); // process SURF on the image instead.
+		//processSurf(cut); // process SURF on the sign-image instead.
 		#ifdef SHOWIMAGES
 		cvShowImage("signFinder",cut);
 		cvWaitKey(0);
@@ -304,6 +304,8 @@ void processFile(char* file)
 			++_signsChecked;
 			if (distance == 0)
 				++_OCRcorrect;
+			else
+				_editDist += distance;
 		}
 	
 		// Add the sign to the bottom of the image.
@@ -312,6 +314,8 @@ void processFile(char* file)
 		cvCopy(cut,result);
 		cvResetImageROI(result);
 		cvRectangle(result,cvPoint(0,prevY),cvPoint(cut->width,prevY+cut->height),CV_RGB(0,0,0),2);	
+		// Add the text of the sign.
+		drawText(result,corners[3].x + 10, corners[3].y, text);
 
 		// Cleanup
 		cvReleaseImage(&cut);
@@ -392,6 +396,7 @@ void cleanup()
 	if (_signsChecked)
 	{
 		printf("%d out of %d signs, which is %f %%, was OCRed entirely correctly\n",_OCRcorrect,_signsChecked, (((double)_OCRcorrect /(double) _signsChecked)) * 100.);
+		printf ("Average edit distance to correct label: %f\n",_editDist / (double) _signsChecked);
 	}
 }
 

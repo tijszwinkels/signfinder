@@ -3,6 +3,7 @@
 
 #include <opencv/cxcore.h>
 #include "CornerFinder.h"
+#include "SignHandler.h"
 
 IplImage* cutSign(IplImage* origImg, CvPoint* corners, int numcorners, bool drawcircles)
 {
@@ -49,5 +50,30 @@ IplImage* cutSign(IplImage* origImg, CvPoint* corners, int numcorners, bool draw
 			cvCircle(origImg, corners[i],5,CV_RGB(255,255,0),2);
 
         return cut;
+}
+
+void drawText(IplImage* img, int x, int y, string text)
+{
+         CvFont fnt;
+         cvInitFont(&fnt,/*CV_FONT_HERSHEY_SIMPLEX*/CV_FONT_VECTOR0,2,2,0,5);
+
+         string remainingText = text;
+
+         if ((remainingText.find("\n") == string::npos))
+		remainingText += "\n";
+
+         while ((remainingText.find("\n") != string::npos))
+         {
+                size_t loc = remainingText.find("\n");
+                string putText = remainingText.substr(0,loc);
+                remainingText = remainingText.substr(loc+1);
+
+                cvPutText(img,putText.c_str(),cvPoint(x,y),&fnt,CV_RGB(1,1,1));
+
+                CvSize size;
+                int belowBase;
+                cvGetTextSize(putText.c_str(),&fnt,&size,&belowBase);
+                y+=size.height - belowBase + 40;
+         }
 }
 #endif
