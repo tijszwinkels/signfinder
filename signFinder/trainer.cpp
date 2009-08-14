@@ -36,7 +36,13 @@
 
 #include <iostream>
 #include <deque>
+#include <opencv/highgui.h>
 #include "lib/histogramtool/histogramTool.h"
+#include "OpenSURF/surflib.h"
+#include "SignHandler.h"
+#include "CornerFinder.h"
+
+#define SHOWIMAGES
 
 using namespace std;
 
@@ -51,6 +57,39 @@ int _curFile=0;
 
 CvHistogram* _posHist;
 CvHistogram* _negHist;
+IpVec _surfpoints;
+
+/* FIXME: Train properly of multiple labels in a train-image */
+void processSurf(IplImage* img, IplImage* mask)
+{
+	// find corners of sign.
+	const int numcorners = 4;
+	CvPoint corners[numcorners];
+        int cornersFound = findCorners(mask,corners,numcorners,10);
+	if (cornersFound != 4)
+	{
+		fprintf(stderr,"Could not find corners, image rejected\n");
+		return;
+	}
+	
+	// cut out the sign in a new image.
+	IplImage* sign = cutSign(img,corners);
+
+	// Calculate SURF keypoinys.
+	IpVec ipts;
+	surfDetDes(sign,ipts,false,4,4,2,0.0002);	
+	printf("Found %d SURF keypoints\n",ipts.size());
+
+	#ifdef SHOWIMAGES
+	drawIpoints(sign, ipts);
+	cvShowImage("trainer",sign);
+	#endif
+
+	// Add detected SURF keypoints to global database.
+	_surfpoints.insert(_surfpoints.end(),ipts.begin(),ipts.end());
+
+	cvReleaseImage(&sign);
+}
 
 void processFile(char* file)
 {
@@ -100,6 +139,9 @@ void processFile(char* file)
 	// Add histograms to whole.
 	addHistogram(_posHist,posHist);
 	addHistogram(_negHist,negHist);
+
+	// Process SURF training.
+	processSurf(_img, _mask);
 	
 	// Cleanup
 	cvReleaseImage(&_img);
@@ -107,26 +149,46 @@ void processFile(char* file)
 }
 void init()
 {
-	//_posHist = loadHistogram("posHist.hist");
-        //_negHist = loadHistogram("negHist.hist");
 	int binsizes[] = {binsize,binsize};
         _posHist = cvCreateHist(2,binsizes, CV_HIST_ARRAY);
         _negHist = cvCreateHist(2,binsizes, CV_HIST_ARRAY);
 	cvClearHist(_posHist);
 	cvClearHist(_negHist);
-	if (!(_posHist && _negHist))
+
+	#ifdef SHOWIMAGES
+	cvNamedWindow("trainer");
+	#endif // SHOWIMAGES
+}
+
+#ifdef DEBUG
+void testSave()
+{
+	IpVec test;
+	test = loadIpVec("_surfkeys.dat");
+
+	assert(test.size() == _surfpoints.size());
+	for (int i=0; i<test.size(); ++i)
 	{
-		cerr << "ERROR: posHist.hist and/or negHist.hist histogram failed to load." << endl;
-		exit(1);
+		for (int j=0; j<64; ++j)
+			assert(fabs(test[i].descriptor[j] - _surfpoints[i].descriptor[j]) < 0.001);
+		if ((i % 100) == 0)
+			printf("%d ok\n",i);
 	}
 }
+#endif
 
 void cleanup()
 {
+	// save the results to files.
 	string filename = "_posHist.hist";
 	writeHistogram(_posHist,(char*) filename.c_str());
 	filename = "_negHist.hist";
 	writeHistogram(_negHist,(char*) filename.c_str());
+	saveIpVec("_surfkeys.dat",_surfpoints);
+
+	#ifdef DEBUG
+	testSave();
+	#endif
 
 	cvReleaseHist(&_posHist);
 	cvReleaseHist(&_negHist);
@@ -145,7 +207,10 @@ int main(int argc, char** argv)
 	init();
 	// iterate through all files.
 	while (++_curFile < argc)
+	{
+		cvWaitKey(50);
         	processFile(argv[_curFile]);
+	}
 
 	cleanup();
 

@@ -35,10 +35,10 @@
 
 
 #include <stdio.h>
+#include <math.h>
 #include <iostream>
+#include <fstream>
 #include "TestHandler.h"
-
-using namespace std;
 
 /** Given a classifier-estimated mask and a known-correct labeled mask,
  *  this function computes the true positive and false positive fraction relative to the label:
@@ -207,3 +207,98 @@ bool checkLabeledBlobs(CBlobResult& detectedBlobs, IplImage* origImg, char* file
 	return true;
 }
 
+/**
+ * Compares the OCRed text from a streetsign with known-correct labels if present
+ */
+int compareText(string detected, char* imgfile)
+{
+	string label;	
+
+	// read labeled text from file;
+	string textfile(imgfile);
+        ifstream ifs((textfile+=".txt").c_str());
+
+	// For multiple signs, assume that the reading with the lowerst edit-distance is the actual correct one.
+	int mindist = 1000;	
+	while ((!ifs.eof()) && (!ifs.fail()))
+	{
+		getline(ifs,label);
+		//cout << label << endl;
+		if (label == "")
+			break;
+
+		// trim leading and trailing whitespace characters.
+		label = trim(label);
+		detected = trim(detected);
+
+		// return the levenshtein distance between the two strings.
+		printf("Comparing \"%s\" and \"%s\".\n",detected.c_str(),label.c_str());
+		int dist = levenshtein(label.c_str(),detected.c_str());
+		if (dist < mindist)
+			mindist = dist;
+	}
+
+	ifs.close();
+	return mindist; // 1000 if error occured.
+
+	
+}
+
+/* Support Functions */
+
+/* Computes the edit-distance or Levenshtein distance between two strings */
+
+int min(int a, int b, int c)
+{
+    if (a < b)
+        if (b<c)
+            return a;
+        else
+            return c;
+    else if (b < c)
+        return b;
+    else
+        return c;
+}
+
+int levenshtein(const char* a, const char* b)
+{
+    int al = strlen(a);
+    int bl = strlen(b);
+    int matrix[al+1][bl+1];
+
+    for (int i=0; i<al+1; i++)
+        for (int j=0; j<bl+1; j++)
+        {
+            matrix[i][j] = 0;
+            matrix[i][0] = i;
+                    matrix[0][j] = j;
+        }
+
+
+    for (int i=1; i<al+1; i++)
+        for (int j=1; j<bl+1; j++)
+        {
+            int cost;
+            if (a[i]==b[j])
+                cost=0;
+            else
+                cost=1;     
+        
+            matrix[i][j] = min( matrix[i-1][j]+1,
+                        matrix[i][j-1]+1,
+                        matrix[i-1][j-1] + cost );
+        }
+
+    return matrix[al][bl];      
+}
+
+string trim(string in)
+{
+	if (in == "")
+		return in;
+
+	size_t startpos = in.find_first_not_of(" \t");  
+	size_t endpos = in.find_last_not_of(" \t");
+	return in.substr(startpos, endpos-startpos + 1);
+}

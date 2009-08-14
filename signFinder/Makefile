@@ -1,17 +1,20 @@
 CXX = g++
-CFLAGS = -Wall -Winvalid-pch -g -Iopencv/ # -DSHOWIMAGES
-LDFLAGS = -lcv -lhighgui 
+CFLAGS = -Wall -g -I. `pkg-config --cflags opencv` -Ilib/ -Imodules/# -DSHOWIMAGES
+LDFLAGS = `pkg-config --libs opencv`
 
 TARGETS = signFinder tester trainer
-GENOBJ = TestHandler.o lib/bloblib/libblob.a lib/histogramtool/histogramTool.o 
-SIGNOBJECTS = signFinder.o CornerFinder.o $(GENOBJ) 
+GENOBJ = modules/TestHandler.o lib/bloblib/libblob.a lib/OpenSURF/libopensurf.a lib/histogramtool/histogramTool.o modules/SignHandler.o modules/CornerFinder.o modules/OCRWrapper.o
+SIGNOBJECTS = signFinder.o $(GENOBJ) 
 TESTOBJECTS = tester.o $(GENOBJ) 
-TRAINOBJECTS = trainer.o lib/histogramtool/histogramTool.o
+TRAINOBJECTS = trainer.o $(GENOBJ)
 
 all: $(TARGETS)
 
 lib/bloblib/libblob.a:
 	cd lib/bloblib; make; cd ../..;
+
+lib/OpenSURF/libopensurf.a:
+	cd lib/OpenSURF; make; cd ../..;
 
 signFinder: $(SIGNOBJECTS)
 	$(CXX) $(CFLAGS) $(SIGNOBJECTS) $(LDFLAGS) -o $@

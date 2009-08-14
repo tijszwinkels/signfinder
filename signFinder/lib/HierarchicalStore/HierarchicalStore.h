@@ -148,10 +148,51 @@ public:
 
 class ImageElement : public HStoreElement
 {
+public:
+	ImageElement(char* type, char* file) : HStoreElement(type)
+	{
+		init(file);
+	}
+
 	virtual ~ImageElement()
 	{
 		cout << "ImageElement destructor called. type: " << _type <<" name: " << _name << endl;
 		cvReleaseImage((IplImage**) &_element);
+	}
+
+protected:
+	void init(char* file)
+	{
+		bool failed = false;
+		IplImage* img = cvLoadImage(file);
+		if (!img)
+		{
+			cerr << "Could not load file " << file << "creating empty set" << endl;
+			failed = true;
+		}
+
+		_element = img;
+		_name = file;
+	}
+};
+
+template <class T>
+class SpecificElement : public HStoreElement
+{
+	SpecificElement(char* type, T* element) : HStoreElement(type, (void*) element)
+	{}
+
+	SpecificElement(char* type, T* element, char* name)  : HStoreElement(type, (void*) element, name)
+	{}
+
+	virtual ~SpecificElement()
+	{
+		cout << "SpecificElement destructor called. type: " << _type <<" name: " << _name << endl;
+		delete((T*) _element);
+	}
+	T* getElement()
+	{
+		return (T*) _element;
 	}
 };
 
@@ -164,6 +205,8 @@ vector<HStoreElement*> it2vec(ElementMap::iterator it, ElementMap::iterator end)
 	result.reserve(distance(it, end));	
 	while (it != end)
 		result.push_back(it++->second);
+
+	return result;
 }
 		
 #endif //HSTORE

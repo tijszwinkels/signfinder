@@ -2,7 +2,7 @@
 # Makefile for blobs library for OpenCV Version 4 and its examples
 #
 
-CFLAGS= `pkg-config --cflags opencv gtk+-2.0` -I. 
+CFLAGS= `pkg-config --cflags opencv gtk+-2.0` -I. -g
 LDFLAGS= `pkg-config --libs opencv gtk+-2.0` -L. -lblob 
 CXX=g++
 
