@@ -40,6 +40,7 @@
 #include "CornerFinder.h"
 #include "TestHandler.h"
 
+const bool _debug = false;
 
 using namespace std;
 
@@ -53,7 +54,7 @@ int findCorners(IplImage* maskImg, CvPoint* corners, int numCorners, double dist
 	IplImage* tmp2 = cvCreateImage(cvSize(maskImg->width, maskImg->height),IPL_DEPTH_32F,1);
 	int cornersFound = numCorners;
 	cvGoodFeaturesToTrack(maskImg,eigtmp,tmp2,f_corners,&cornersFound, 0.1,distThr,NULL,9);
-	cout << "Found " << cornersFound << " Corners." << endl;
+	if (_debug) cerr << "findCorners:: Found " << cornersFound << " Corners." << endl;
 
 	//Cleanup
 	cvReleaseImage(&tmp2);
