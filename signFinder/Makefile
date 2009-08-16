@@ -2,9 +2,10 @@ CXX = g++
 CFLAGS = -Wall -g -I. `pkg-config --cflags opencv` -Ilib/ -Imodules/# -DSHOWIMAGES
 LDFLAGS = `pkg-config --libs opencv`
 
-TARGETS = signFinder tester trainer
+TARGETS = signFinder tester trainer libsignfinder.a
 GENOBJ = modules/TestHandler.o lib/bloblib/libblob.a lib/histogramtool/histogramTool.o modules/SignHandler.o modules/CornerFinder.o modules/OCRWrapper.o lib/OpenSURF/libopensurf.a 
-SIGNOBJECTS = main.o modules/signFinder.o $(GENOBJ) 
+LIBOBJECTS = modules/signFinder.o $(GENOBJ)
+SIGNOBJECTS = main.o $(LIBOBJECTS) 
 TESTOBJECTS = tester.o $(GENOBJ) 
 TRAINOBJECTS = trainer.o $(GENOBJ)
 
@@ -16,6 +17,11 @@ lib/bloblib/libblob.a:
 lib/OpenSURF/libopensurf.a:
 	cd lib/OpenSURF; make; cd ../..;
 
+libsignfinder.a: $(LIBOBJECTS)
+	ar ru $@ $(LIBOBJECTS)
+	ranlib $@
+
+
 signFinder: $(SIGNOBJECTS)
 	$(CXX) $(CFLAGS) $(SIGNOBJECTS) $(LDFLAGS) -o $@
 
@@ -24,6 +30,7 @@ tester: $(TESTOBJECTS)
 
 trainer: $(TRAINOBJECTS) 
 	$(CXX) $(CFLAGS) $(TRAINOBJECTS) $(LDFLAGS) -o $@
+
 .cpp.o:
 	$(CXX) $(CFLAGS) -c $< -o $@
 
