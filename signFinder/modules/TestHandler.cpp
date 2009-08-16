@@ -33,6 +33,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  */
 
+const bool _debug = false;
 
 #include <stdio.h>
 #include <math.h>
@@ -52,8 +53,6 @@ double compareMasks(IplImage* estimation, IplImage* label, double* _fp)
 	IplImage* compLabel = NULL;
 	IplImage* intersection = cvCreateImage(cvGetSize(estimation), IPL_DEPTH_8U, 3);
 
-	cout << estimation->width << " " << label->width << endl;
-
 	// Resize label to size that the classifier is using.
 	if (( estimation->width != label->width ) || ( estimation->height != label->height ))
 	{
@@ -70,7 +69,7 @@ double compareMasks(IplImage* estimation, IplImage* label, double* _fp)
 	double tp = tpSurface / labelSurface; 
 	double fp = (estimationSurface - tpSurface) / (label->width * label->height);
 
-	printf ("labelSurface: %f, estimationSurface: %f, tpSurface: %f, tp: %f, fp: %f\n",labelSurface, estimationSurface, tpSurface, tp, fp);
+	if (_debug) fprintf (stderr, "labelSurface: %f, estimationSurface: %f, tpSurface: %f, tp: %f, fp: %f\n",labelSurface, estimationSurface, tpSurface, tp, fp);
 
 	// Cleanup
 	if (compLabel)
@@ -232,7 +231,7 @@ int compareText(string detected, char* imgfile)
 		detected = trim(detected);
 
 		// return the levenshtein distance between the two strings.
-		printf("Comparing \"%s\" and \"%s\".\n",detected.c_str(),label.c_str());
+		if (_debug) fprintf(stderr,"Comparing \"%s\" and \"%s\".\n",detected.c_str(),label.c_str());
 		int dist = levenshtein(label.c_str(),detected.c_str());
 		if (dist < mindist)
 			mindist = dist;

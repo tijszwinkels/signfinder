@@ -73,6 +73,7 @@ int main(int argc, char** argv)
 		cvWaitKey(20);
 	}
 
+	cvWaitKey(1000);
         return 0;
 }
 
