@@ -3,8 +3,8 @@ CFLAGS = -Wall -g -I. `pkg-config --cflags opencv` -Ilib/ -Imodules/# -DSHOWIMAG
 LDFLAGS = `pkg-config --libs opencv`
 
 TARGETS = signFinder tester trainer
-GENOBJ = modules/TestHandler.o lib/bloblib/libblob.a lib/OpenSURF/libopensurf.a lib/histogramtool/histogramTool.o modules/SignHandler.o modules/CornerFinder.o modules/OCRWrapper.o
-SIGNOBJECTS = signFinder.o $(GENOBJ) 
+GENOBJ = modules/TestHandler.o lib/bloblib/libblob.a lib/histogramtool/histogramTool.o modules/SignHandler.o modules/CornerFinder.o modules/OCRWrapper.o lib/OpenSURF/libopensurf.a 
+SIGNOBJECTS = main.o modules/signFinder.o $(GENOBJ) 
 TESTOBJECTS = tester.o $(GENOBJ) 
 TRAINOBJECTS = trainer.o $(GENOBJ)
 

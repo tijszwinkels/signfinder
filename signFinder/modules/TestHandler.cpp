@@ -130,7 +130,7 @@ void fillConvexHull(IplImage* img, CBlob* blob, CvScalar color)
 
 
 /* This function judges whether detected blobs corresponds with one of the known-correct labeled area's */
-bool checkLabeledBlobs(CBlobResult& detectedBlobs, IplImage* origImg, char* file, int& fp, int& fn, int& multipleDetections, CBlobResult* correctBlobsOut, CBlobResult* incorrectBlobsOut)
+bool checkLabeledBlobs(CBlobResult& detectedBlobs, CvSize origImg, char* file, int& fp, int& fn, int& multipleDetections, CBlobResult* correctBlobsOut, CBlobResult* incorrectBlobsOut)
 {
 	// See if we can find a mask for this file.
         string maskfile(file);
@@ -157,7 +157,7 @@ bool checkLabeledBlobs(CBlobResult& detectedBlobs, IplImage* origImg, char* file
 	int correctMaskBlobs[maskblobs.GetNumBlobs()];
 	for (int i=0; i<maskblobs.GetNumBlobs(); ++i)
 		correctMaskBlobs[i]=0;
-        IplImage* detectedMask = cvCreateImage(cvGetSize(origImg), IPL_DEPTH_8U, 3);
+        IplImage* detectedMask = cvCreateImage(origImg, IPL_DEPTH_8U, 3);
 
 	// Iterate through each of the blobs in each of the mask, to see if they correspond.
 	for (int detectedBlobI = 0; detectedBlobI < detectedBlobs.GetNumBlobs(); ++detectedBlobI)

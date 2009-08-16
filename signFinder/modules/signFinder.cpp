@@ -35,10 +35,11 @@
 
 
 #include <iostream>
-#include "lib/histogramtool/histogramTool.h"
-#include "lib/bloblib/Blob.h"
-#include "lib/bloblib/BlobResult.h"
-#include "lib/HierarchicalStore/HierarchicalStore.h"
+#include "SignFinder.h"
+//#include "lib/histogramtool/histogramTool.h"
+//#include "lib/bloblib/Blob.h"
+//#include "lib/bloblib/BlobResult.h"
+//#include "lib/HierarchicalStore/HierarchicalStore.h"
 #include "modules/TestHandler.h"
 #include "modules/CornerFinder.h"
 #include "modules/SignHandler.h"
@@ -50,6 +51,15 @@ using namespace std;
 //#define SHOWIMAGES
 //#define SURF
 
+SignFinder::SignFinder()
+{
+	init();
+}
+
+SignFinder::~SignFinder()
+{
+	cleanup();
+}
 const double HISTTHRESHOLD = 0.19;
 const int WINDOWX = 1024;
 const int WINDOWY = 768;
@@ -59,29 +69,29 @@ const int YRES= 1200;
 //const int YRES = 0;
 
 
-
-int _curFile=0;
+#if 1 
 int _fp=0, _fn=0, _multDetect=0, _imagesChecked=0, _imagesErr=0; // performance metrics detecting images.
 int _OCRcorrect=0,_signsChecked=0; double _editDist;// performance metrics OCR images.
+#endif
 
 CvHistogram* _posHist;
 CvHistogram* _negHist;
 IpVec _surfpoints;
 
 /* Filter Blobs*/
-CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
+CBlobResult SignFinder::classifyBlobs(CBlobResult& blobs, char* file, CvSize size, IplImage* img)
 {
 	CBlobResult result;	
 
 	// Pre-filtering
-	// Surface > 1/400th image surface.
-	blobs.Filter( blobs, B_EXCLUDE, CBlobGetArea(), B_LESS, (img->height*img->width) / 600 );
+	// Surface > 1/600th image surface.
+	blobs.Filter( blobs, B_EXCLUDE, CBlobGetArea(), B_LESS, (size.width * size.height) / 600 );
 	
 	// Blobs not in contact with sides of image. 
 	blobs.Filter( blobs, B_EXCLUDE, CBlobGetMinX(), B_EQUAL, 0);
-	blobs.Filter( blobs, B_EXCLUDE, CBlobGetMaxX(), B_EQUAL, img->width-1);
+	blobs.Filter( blobs, B_EXCLUDE, CBlobGetMaxX(), B_EQUAL, size.width-1);
 	blobs.Filter( blobs, B_EXCLUDE, CBlobGetMinY(), B_EQUAL, 0);
-	blobs.Filter( blobs, B_EXCLUDE, CBlobGetMaxY(), B_EQUAL, img->height-1);
+	blobs.Filter( blobs, B_EXCLUDE, CBlobGetMaxY(), B_EQUAL, size.height-1);
 
 	// Iterate through the blobs, and accept or reject them based on statistical features.
 	CBlob* currentBlob = NULL;
@@ -108,20 +118,23 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 		double orientation = ori(*currentBlob);
 		double squareness = area / (width * height);
 		
-		printf	("Blob %d - area: %f, width x height: %fx%f, orientation:%f, x/y ratio: %f, w/h ratio: %f, rougness: %f, squareness: %f",
+		if (_debug)
+			fprintf	(stderr, "Blob %d - area: %f, width x height: %fx%f, orientation:%f, x/y ratio: %f, w/h ratio: %f, rougness: %f, squareness: %f",
 			 i,area,width,height,orientation,XYratio,WHratio,roughness,squareness);	
 
 		// Classify
 		if ((squareness < 0.70) || (XYratio < 0.45) || WHratio < 2.5) 
 		{
-			cout << "  Rejected\n";
+				
+			if (_debug) cerr << "  Rejected\n";
 			// make rejected blobs black.
-			currentBlob->FillBlob(img,CV_RGB(0,0,0));
+			if (img)
+				currentBlob->FillBlob(img,CV_RGB(0,0,0));
 
 		}
 		else
 		{
-			cout << "  Accepted\n";
+			if (_debug) cout << "  Accepted\n";
 			result.AddBlob(currentBlob);
 		}
 
@@ -130,14 +143,15 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 	// Compare with labeled.
 	//CBlobResult correct, incorrect;
 	int fp=0, fn=0, multdetect = 0;
-	bool success = checkLabeledBlobs(result,img,file,fp,fn,multdetect);//,&correct,&incorrect);
+	bool success = checkLabeledBlobs(result,size,file,fp,fn,multdetect);//,&correct,&incorrect);
 	//for (int i = 0; i < correct.GetNumBlobs(); ++i )
 	//	fillConvexHull(img,correct.GetBlob(i),CV_RGB(0,255,0));
 	//for (int i = 0; i < incorrect.GetNumBlobs(); ++i )
 	//	fillConvexHull(img,incorrect.GetBlob(i),CV_RGB(255,0,0));
+	//
 	if (success)
 	{
-		printf("For this image, we encountered %d false positives, %d undetected signs, and %d multiple detections\n",fp,fn,multdetect);
+		if (_debug) fprintf(stderr,"For this image, we encountered %d false positives, %d undetected signs, and %d multiple detections\n",fp,fn,multdetect);
 		++_imagesChecked;
 		_fp += fp;
 		_fn += fn;
@@ -150,35 +164,7 @@ CBlobResult classifyBlobs(CBlobResult& blobs, IplImage* img, char* file)
 	return result;
 }
 
-/* If we have the perspective-corrected streetsign, save it as a picture with thresholded leters
- * for the OCR software.*/
-#if 0
-void processSign(IplImage* sign, char* file, int i)
-{
-	// Convert to greyscale
-	IplImage* grey = cvCreateImage(cvGetSize(sign), IPL_DEPTH_8U, 1);
-	cvCvtColor(sign,grey,CV_RGB2GRAY);
-
-	// Use the histogram-matcher blob detector to segment the letters.
-	CvMat* imgMat = cvCreateMatHeader(sign->height, sign->width,CV_8UC3);
-        imgMat = cvGetMat(sign,imgMat);
-        IplImage* histMatched = skinDetectBayes(imgMat,_posHist,_negHist,HISTTHRESHOLD);
-	cvNot(histMatched,histMatched);
-
-	// Save the image.
-	char signfile[256];   
-	snprintf(signfile, 256, "%s_sign%d.pgm",file, i );  
-	//cvSaveImage(signfile,histMatched);
-	cvSaveImage(signfile,sign);
-
-	// Cleanup
-	cvReleaseImage(&grey);
-	cvReleaseMat(&imgMat);
-	cvReleaseImage(&histMatched);
-}
-#endif
-
-void processSurf(IplImage* img)
+void SignFinder::processSurf(IplImage* img)
 {
 	// Detect SURF points in image.
 	IpVec ipts;
@@ -194,10 +180,201 @@ void processSurf(IplImage* img)
 	
 }
 
+/* readSign support functions */
+IplImage* SignFinder::resize(IplImage* _img)
+{
+	IplImage* img;
+	if ((XRES) && ((XRES != cvGetSize(_img).width) || (YRES != cvGetSize(_img).height)))
+        {
+                img = cvCreateImage(cvSize(XRES,YRES),IPL_DEPTH_8U,3);
+                cvResize(_img,img);
+                cvReleaseImage(&_img);
+        }
+        else
+                img = _img;
+	
+	return img;
+}
+
+IplImage* SignFinder::histMatch(IplImage* img, IplImage* vis)
+{
+	// Perform histogram matching.
+	CvMat* imgMat = cvCreateMatHeader(img->height, img->width,CV_8UC3);
+        imgMat = cvGetMat(img,imgMat);
+        IplImage* histMatched = skinDetectBayes(imgMat,_posHist,_negHist,_histThreshold);
+	cvReleaseMatHeader(&imgMat);
+
+	// Increase robustness for 'holes' in masks by dilating and eroding.
+	//cvDilate(histMatched,histMatched,NULL,1);
+	//cvErode(histMatched,histMatched,NULL,1);
+
+	// Create visualisation of histogram matched area's if requested.
+	if (vis)
+	{
+		cvSet(vis,cvScalar(0,0,0));
+		cvCopy(img,vis,histMatched);
+		cvAddWeighted(vis, 0.90, img, 0.10, 0, vis);
+	} 	
+
+	return histMatched;
+}
+
+void colorBlobs(CBlobResult& blobs, IplImage* vis)
+{
+	CBlob* currentBlob = NULL;
+	for (int i = 0; i < blobs.GetNumBlobs(); ++i )
+	{
+		int rd = (i+1 & 1) * 255;
+                int g = (i+1 & 2) * 127;
+                int b = (i+1 & 4) * 63;
+        	currentBlob = blobs.GetBlob(i);
+		currentBlob->FillBlob(vis,CV_RGB(rd,g,b));
+	}
+}
+
+string SignFinder::readSigns(char* file, IplImage* result)
+{
+	// Load image file.
+	IplImage* img = cvLoadImage(file);
+        if (!img)
+        {
+                cerr << "Could not load file " << file << endl;
+                exit(1);
+        }
+	if (_debug) cerr << "Processing " << file << endl;
+
+	// Resize master if requested.
+	img = resize(img);	
+
+	// Create copy of original image that algorithms can use to draw their results on.
+	bool wantsresult = true;
+	if (!result)
+	{
+		result = cvCreateImage(cvSize(img->width,img->height),IPL_DEPTH_8U,3);
+		wantsresult = false;
+	}
+	cvCopy(img,result);
+
+		// return mask of pixels that are blue.
+	IplImage* histMatchVis = NULL;
+	if (_debug)
+		histMatchVis = cvCreateImage(cvSize(img->width,img->height),IPL_DEPTH_8U,3);
+	IplImage* histMatched = histMatch(img,histMatchVis);
+
+	// Save histogram-matching visualization if requested.
+	if (histMatchVis)
+	{
+		string matchedfile(file);
+        	cvSaveImage((matchedfile+"_matched.jpg").c_str(),histMatchVis);
+	}
+
+
+	// Perform SURF feature-point detection for features that were detected in the trainset.
+	#ifdef SURF
+	processSurf(result);
+	#endif	
+
+	// Perform blob detection on the histogram matched result, and accept or reject them based on 
+	// statistics.
+	CBlobResult blobs = CBlobResult( histMatched, NULL, 0, false );
+	blobs = classifyBlobs(blobs, file, cvSize(img->width, img->height), histMatchVis);
+	if (_debug)
+		cerr << "Classification: I think there are " << blobs.GetNumBlobs()  << " blue signs in this image" << endl << endl;
+	
+	// Color the blobs
+	if (_debug)
+		colorBlobs(blobs,histMatchVis);	
+
+	// Iterate through the found streetsigns.
+	int prevY = 0;
+	if (result)
+		prevY = result->height-1;
+	CBlob* currentBlob = NULL;
+	string resultText;
+	for (int i = 0; i < blobs.GetNumBlobs(); ++i )
+	{
+		currentBlob = blobs.GetBlob(i);
+
+		// calculate some needed statistics over the blob
+		CBlobGetMajorAxisLength ma;
+		double height = ma(currentBlob);
+
+		// Find the corners with a distance-threshold between corners of 0.75* the height.
+		int numcorners = 4;
+		CvPoint corners[numcorners];
+		findCorners(*currentBlob,corners,numcorners,height*0.75);
+
+		// Cut the image out with perspective correction.
+		IplImage* cut = cutSign(result, corners, 4, true );
+
+		// OCR sign, and generate performance metrics.
+		string text = extractText(cut,_posHist, _negHist);	
+		resultText = text + "\n";
+		if (_debug)
+			cerr << "---------------- Reading streetsign: " << text << endl;
+		int distance = compareText(text,file);
+		if (distance != -1)
+		{
+			cout << "----- edit distance to label: " << distance << endl;
+			++_signsChecked;
+			if (distance == 0)
+				++_OCRcorrect;
+			else
+				_editDist += distance;
+		}
+	
+		// Add the sign to the bottom of the image.
+		if (result)
+		{
+			prevY -= cut->height;		
+			cvSetImageROI(result,cvRect(0,prevY,cut->width,cut->height));
+			cvCopy(cut,result);
+			cvResetImageROI(result);
+			cvRectangle(result,cvPoint(0,prevY),cvPoint(cut->width,prevY+cut->height),CV_RGB(0,0,0),2);	
+			// Add the text of the sign.
+			drawText(result,corners[3].x + 10, corners[3].y, text);
+		}
+		cvReleaseImage(&cut);
+	
+		// Draw a convex hull around found images
+		if (result)
+		{	
+			// get the convex hull
+			CvSeq* hull;
+			currentBlob->GetConvexHull(&hull);
+
+			// Draw the convex hull
+			int rd = (i+1 & 1) * 255;
+			int g = (i+1 & 2) * 127;
+			int b = (i+1 & 4) * 63;
+
+			CvPoint pt0 = **CV_GET_SEQ_ELEM( CvPoint*, hull, hull->total - 1 );
+			for (int j=0; j< hull->total; ++j)
+			{
+				CvPoint pt1 = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
+				//cout << "Drawing line from " << pt0.x << "," << pt0.y << " to " << pt0.x << "," << pt0.y << endl;
+				if (histMatchVis) cvLine( histMatchVis, pt0, pt1, CV_RGB(rd,g,b), 1, CV_AA, 0 );	
+				cvLine( result, pt0, pt1, CV_RGB(rd,g,b), 3, CV_AA, 0 );	
+				pt0 = pt1;
+			}
+		}
+	}
+
+	// Cleanup
+	cvReleaseImage(&img);
+	cvReleaseImage(&histMatched);
+	if (histMatchVis)
+		cvReleaseImage(&histMatchVis);
+	if (!wantsresult)
+		cvReleaseImage(&result);
+
+	return resultText;
+}
+
+#if 0
 /* Big Ugly 'this function does everything' function. */
 void processFile(char* file)
 {
-	CvMemStorage* mem = cvCreateMemStorage();
 	IplImage* _img = cvLoadImage(file);
 	//ImageElement imageElement("InputImage",file);
 	//IplImage* _img = (IplImage*) imageElement.getElement();
@@ -254,7 +431,7 @@ void processFile(char* file)
 	// Perform blob detection.
 	CBlobResult blobs = CBlobResult( histMatched, NULL, 0, false );
 	CBlobResult oldblobs = blobs;
-	blobs = classifyBlobs(blobs,overlay, file);
+	blobs = classifyBlobs(blobs, file, overlay);
 	//blobs.PrintBlobs("blobs.dat");
 
 	cout << "Classification: I think there are " << blobs.GetNumBlobs()  << " blue signs in this image" << endl << endl;
@@ -357,22 +534,35 @@ void processFile(char* file)
 	cvReleaseImage(&overlay);
 	cvReleaseImage(&histMatched);
 	cvReleaseImage(&result);
-	cvReleaseMemStorage(&mem);
 }
+#endif
 
-
-void init()
+void SignFinder::loadHistograms()
 {
 	_posHist = loadHistogram("posHist.hist");
         _negHist = loadHistogram("negHist.hist");
-	if (!(_posHist && _negHist))
-	{
-		cerr << "ERROR: posHist.hist and/or negHist.hist histogram failed to load." << endl;
-		exit(1);
-	}
-	#ifdef SURF
+        if (!(_posHist && _negHist))
+        {
+                cerr << "ERROR: posHist.hist and/or negHist.hist histogram failed to load." << endl;
+                exit(1);
+        }
+}
+
+void SignFinder::loadSurf()
+{
 	_surfpoints = loadIpVec("surfkeys.dat");
-	printf("loaded database of %d surf-points\n",_surfpoints.size());
+        printf("loaded database of %d surf-points\n",_surfpoints.size());
+}
+
+void SignFinder::init()
+{
+	_histThreshold = 0.19;
+	XRES = 1600; YRES = 1200;
+	_debug = false;
+
+	loadHistograms();
+	#ifdef SURF
+	loadSurf();
 	#endif	
 
 	#ifdef SHOWIMAGES
@@ -381,13 +571,8 @@ void init()
 	#endif
 }
 
-void cleanup()
+void processPerformanceStats()
 {
-	cvReleaseHist(&_posHist);
-	cvReleaseHist(&_negHist);
-	_posHist = NULL;
-	_negHist = NULL;
-
 	if (_imagesChecked)
 	{
 		printf("In %d images we encountered %d false positives, %d false negatives, and %d multiple detections\n",_imagesChecked,_fp,_fn,_multDetect);
@@ -400,19 +585,13 @@ void cleanup()
 	}
 }
 
-int main(int argc, char** argv)
+void SignFinder::cleanup()
 {
-        if (argc < 2)
-        {
-                cerr << "Usage: " << argv[0] << " <image-files>" << endl;
-                exit(0);
-        }
+	processPerformanceStats();
 
-	init();
-	// iterate through all files.
-	while (++_curFile < argc)
-        	processFile(argv[_curFile]);
-	cleanup();
-
-	return 0;
+	cvReleaseHist(&_posHist);
+	cvReleaseHist(&_negHist);
+	_posHist = NULL;
+	_negHist = NULL;
 }
+
