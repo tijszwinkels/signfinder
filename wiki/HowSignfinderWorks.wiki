@@ -1,0 +1,10 @@
+#summary Overview of the internals of signFinder.
+In Progress
+
+= System Overview =
+The following image describes the different modules in signFinder, and the data-flow between them.
+
+[http://mirror.openstreetmap.nl/openstreetphoto/tijs/results/data/signFinder%20System%20Overview.png]
+[http://mirror.openstreetmap.nl/openstreetphoto/tijs/results/data/ originals] 
+
+In this chapter, each of the modules, their internal working, and their location in the code-base will be described.
