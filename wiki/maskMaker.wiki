@@ -1,5 +1,5 @@
 #summary maskMaker - Allows user to hand-label parts of images and generate binary masks of labeled parts.
-#labels Featured,Documentation
+#labels Documentation
 {{{
 
      maskMaker - Allows user to hand-label parts of images and generate binary masks of labeled parts.
