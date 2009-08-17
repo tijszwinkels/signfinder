@@ -136,7 +136,7 @@ bool checkLabeledBlobs(CBlobResult& detectedBlobs, CvSize origImg, char* file, i
         IplImage* labeledMask = cvLoadImage((maskfile+"_mask.png").c_str());
 	if (!labeledMask)
 	{
-		cerr << "Warning:: Couldn't open mask " << maskfile << endl;
+		if (_debug) cerr << "Warning:: Couldn't open mask " << maskfile << endl;
 		return false;
 	}
 

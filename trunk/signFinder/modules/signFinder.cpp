@@ -312,11 +312,11 @@ string SignFinder::readSigns(char* file, IplImage* result)
 
 		// OCR sign, and generate performance metrics.
 		string text = extractText(cut,_posHist, _negHist);	
-		resultText = text + "\n";
+		resultText += text + "\n";
 		if (_debug)
 			cerr << "---------------- Reading streetsign: " << text << endl;
 		int distance = compareText(text,file);
-		if (distance != -1)
+		if (distance != 1000)
 		{
 			if (_showPerformance)
 				cout << "OCR distance to truth: " << distance << endl;

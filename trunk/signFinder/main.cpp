@@ -42,16 +42,22 @@ const int WINDOWY = 768;
 int _curFile = 0;
 
 SignFinder sf;
+bool window=true, saveImage=true;
 
+/**
+ *  Try to read the streetsigns in the image with the SignFinder library,
+ *  and print the text on the streetsign to stdout
+ */
 void processFile(char* file)
 {
 		IplImage* vis = cvCreateImage(cvSize(1600,1200), IPL_DEPTH_8U,3);
                 string result = sf.readSigns(file,vis);
-                cout << result ;
+                cout << file << ":" << endl << result ; 
                 string resultfile(file);
-                cvSaveImage((resultfile+"_result.jpg").c_str(),vis);
-
-		cvShowImage("signFinder",vis);
+		if (saveImage)
+                	cvSaveImage((resultfile+"_result.jpg").c_str(),vis);
+		if (window)
+			cvShowImage("signFinder",vis);
                 cvReleaseImage(&vis);
 }
 
@@ -59,14 +65,41 @@ int main(int argc, char** argv)
 {
         if (argc < 2)
         {
-                cerr << "Usage: " << argv[0] << " <image-files>" << endl;
+                cerr << "Usage: " << argv[0] << "<options> [image-files]" << endl;
+                cerr << "See README.signFinder for more information." << endl;
                 exit(0);
         }
 
-	cvNamedWindow("signFinder",0);
-        cvResizeWindow("signFinder", WINDOWX, WINDOWY);	
+	// Parse command-line parameters
+	int c;
+	while ((c = getopt (argc, argv, "vwps")) != -1)
+	{
+		switch(c)
+		{
+			case 'v':
+				sf.setDebug(true);
+			break;
+			case 'w':
+				window = false;
+			break;
+			case 'p':
+				sf.setShowPerformance(false);
+			break;
+			case 's':
+				saveImage = false;
+			break;
+		}	
+	}
+
+	// Create window if desired 
+	if (window)
+	{
+		cvNamedWindow("signFinder",0);
+        	cvResizeWindow("signFinder", WINDOWX, WINDOWY);
+	}	
 
         // iterate through all files.
+        _curFile = optind-1;
         while (++_curFile < argc)
 	{
 		processFile(argv[_curFile]);

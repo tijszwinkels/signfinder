@@ -164,7 +164,10 @@ string extractText(IplImage* sign, CvHistogram* _posHist, CvHistogram* _negHist)
 	cvReleaseImage(&grey);
 
 	// Crunch the image through tesseract, and gather the results.
-	system("tesseract OCRsign.tif OCR nobatch modules/signOCR.conf");
+	if (_debug)
+		system("tesseract OCRsign.tif OCR nobatch modules/signOCR.conf");
+	else
+		system("tesseract OCRsign.tif OCR nobatch modules/signOCR.conf 2> /dev/null");
 	string result;
 	result[0] = 0;
 	ifstream ifs("OCR.txt");
@@ -174,7 +177,7 @@ string extractText(IplImage* sign, CvHistogram* _posHist, CvHistogram* _negHist)
 		cerr << "WARNING: Could not read OCR results. Is tesseract properly installed?" << endl;
 	
 	// Cleanup
-	//remove("OCRsign.tif");
+	remove("OCRsign.tif");
 	remove("OCR.txt");
 	remove("OCR.raw");
 	remove("OCR.map");
