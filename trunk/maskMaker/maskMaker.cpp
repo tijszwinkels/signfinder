@@ -99,15 +99,19 @@ void keyEvent(int key)
 {
 	switch (key)
 	{
+		case(1048691):
 		case('s'): // save 
 			ih.save();
 		break;
+		case(1048689):
 		case('q'): // quit
 			exit(0);
 		break;
+		case(1048692):
 		case('t'): // switch tool
 			ih.switchTool();	
 		break;
+		case(1048698):
 		case('z'): // undo 
 			ih.undo();	
 			showImage(ih.getWindow());
