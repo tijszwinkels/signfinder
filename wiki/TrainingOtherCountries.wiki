@@ -1,4 +1,4 @@
-#summary How to adapt the signFinder to read streetsigns of another country?
+#summary How to adapt the signFinder to read streetsigns from another country?
 
 = Introduction =
 
