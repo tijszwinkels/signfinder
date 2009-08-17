@@ -1,5 +1,4 @@
 #summary How to adapt the signFinder to read streetsigns of another country?
-In progress
 
 = Introduction =
 
@@ -50,10 +49,11 @@ After the dataset has been labeled, the color histograms need to be trained. Thi
   * If you want to train all jpg-files in the ~/Dataset1 directory, you'll do: {{{./trainer ~/Dataset1/*.jpg}}}
   * If you want to train all jpg-files in the ~/Dataset1 and ~/Dataset2 directory, you'll do: {{{./trainer ~/Dataset1/*.jpg ~/Dataset2/*.jpg}}}
 
-This will create a {{{_posHist.hist}}}, a {{{_negHist.hist}}}, and a {{{_surfkeys.dat}}} file. Since the [signFinder] executable reads the files posHist.hist, negHist.hist and surfkeys.dat, the files will need to be renamed in order to be used by the signFinder.
+This will create a {{{_posHist.hist}}}, a {{{_negHist.hist}}}, and a {{{_surfkeys.dat}}} file in the current directory. Since the [signFinder] executable reads the files posHist.hist, negHist.hist and surfkeys.dat, the files will need to be renamed in order to be used by the signFinder.
   * {{{ mv _postHist.hist posHist.hist }}}
   * {{{ mv _negHist.hist negHist.hist }}}
   * {{{ mv _surfkeys.dat surfkeys.dat }}}
+From now on, the newly trained database will be used.
 
 = Also See =
 
