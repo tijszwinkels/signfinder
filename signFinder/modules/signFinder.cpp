@@ -230,6 +230,84 @@ void colorBlobs(CBlobResult& blobs, IplImage* vis)
 }
 
 /**
+ * Draws a convex-hull around the blob
+ */
+void SignFinder::drawConvexHull(CBlob* blob, IplImage* img, int i)
+{
+	// get the convex hull
+	CvSeq* hull;
+	blob->GetConvexHull(&hull);
+
+	// Determine the color based on the 'i'ndex.
+	int rd = (i+1 & 1) * 255;
+	int g = (i+1 & 2) * 127;
+	int b = (i+1 & 4) * 63;
+
+	// Draw the convex hull
+	CvPoint pt0 = **CV_GET_SEQ_ELEM( CvPoint*, hull, hull->total - 1 );
+	for (int j=0; j< hull->total; ++j)
+	{
+		CvPoint pt1 = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
+		//cout << "Drawing line from " << pt0.x << "," << pt0.y << " to " << pt0.x << "," << pt0.y << endl;
+		cvLine(img, pt0, pt1, CV_RGB(rd,g,b), 3, CV_AA, 0 );	
+		pt0 = pt1;
+	}
+}
+
+/** 
+ * This function processes all blobs that have been detected as containing an streetsign.
+ * Tasks include:
+ * - cutting out the street sign.
+ * - adding the cut-out streetsign to the bottom of the result image
+ * - performing OCR over the streetsign.
+ */
+string SignFinder::processBlob(CBlob* currentBlob, char* file,  IplImage* result, int& prevY, IplImage* histMatchVis)
+{
+		// calculate some needed statistics over the blob
+		CBlobGetMajorAxisLength ma;
+		double height = ma(currentBlob);
+
+		// Find the corners with a distance-threshold between corners of 0.75* the height.
+		int numcorners = 4;
+		CvPoint corners[numcorners];
+		findCorners(*currentBlob,corners,numcorners,height*0.75);
+
+		// Cut the image out with perspective correction.
+		IplImage* cut = cutSign(result, corners, 4, true );
+
+		// OCR sign, and generate performance metrics.
+		string text = extractText(cut,_posHist, _negHist);	
+		if (_debug)
+			cerr << "---------------- Reading streetsign: " << text << endl;
+		int distance = compareText(text,file);
+		if (distance != 1000)
+		{
+			if (_showPerformance)
+				cout << "OCR distance to truth: " << distance << endl;
+			_ocrperf._signsChecked++;
+			if (distance == 0)
+				_ocrperf._OCRcorrect++;
+			else
+				_ocrperf._editDist += distance;
+		}
+	
+		// Add the sign to the bottom of the image.
+		if (result)
+		{
+			prevY -= cut->height;		
+			cvSetImageROI(result,cvRect(0,prevY,cut->width,cut->height));
+			cvCopy(cut,result);
+			cvResetImageROI(result);
+			cvRectangle(result,cvPoint(0,prevY),cvPoint(cut->width,prevY+cut->height),CV_RGB(0,0,0),2);	
+			// Add the text of the sign.
+			drawText(result,corners[3].x + 10, corners[3].y, text);
+		}
+		cvReleaseImage(&cut);
+	
+		return text;
+}
+
+/**
  * Accepts an image containing one of more streetsigns. 
  * Tries to segment and read (OCR) this streetsign.
  * This is the entry-funtion on the class.
@@ -296,72 +374,14 @@ string SignFinder::readSigns(char* file, IplImage* result)
 	string resultText;
 	for (int i = 0; i < blobs.GetNumBlobs(); ++i )
 	{
+		// process the blob / found streetsign.
 		currentBlob = blobs.GetBlob(i);
-
-		// calculate some needed statistics over the blob
-		CBlobGetMajorAxisLength ma;
-		double height = ma(currentBlob);
-
-		// Find the corners with a distance-threshold between corners of 0.75* the height.
-		int numcorners = 4;
-		CvPoint corners[numcorners];
-		findCorners(*currentBlob,corners,numcorners,height*0.75);
-
-		// Cut the image out with perspective correction.
-		IplImage* cut = cutSign(result, corners, 4, true );
-
-		// OCR sign, and generate performance metrics.
-		string text = extractText(cut,_posHist, _negHist);	
+		string text = processBlob(currentBlob, file, result, prevY, histMatchVis); 		
 		resultText += text + "\n";
-		if (_debug)
-			cerr << "---------------- Reading streetsign: " << text << endl;
-		int distance = compareText(text,file);
-		if (distance != 1000)
-		{
-			if (_showPerformance)
-				cout << "OCR distance to truth: " << distance << endl;
-			_ocrperf._signsChecked++;
-			if (distance == 0)
-				_ocrperf._OCRcorrect++;
-			else
-				_ocrperf._editDist += distance;
-		}
-	
-		// Add the sign to the bottom of the image.
-		if (result)
-		{
-			prevY -= cut->height;		
-			cvSetImageROI(result,cvRect(0,prevY,cut->width,cut->height));
-			cvCopy(cut,result);
-			cvResetImageROI(result);
-			cvRectangle(result,cvPoint(0,prevY),cvPoint(cut->width,prevY+cut->height),CV_RGB(0,0,0),2);	
-			// Add the text of the sign.
-			drawText(result,corners[3].x + 10, corners[3].y, text);
-		}
-		cvReleaseImage(&cut);
-	
-		// Draw a convex hull around found images
-		if (result)
-		{	
-			// get the convex hull
-			CvSeq* hull;
-			currentBlob->GetConvexHull(&hull);
 
-			// Draw the convex hull
-			int rd = (i+1 & 1) * 255;
-			int g = (i+1 & 2) * 127;
-			int b = (i+1 & 4) * 63;
-
-			CvPoint pt0 = **CV_GET_SEQ_ELEM( CvPoint*, hull, hull->total - 1 );
-			for (int j=0; j< hull->total; ++j)
-			{
-				CvPoint pt1 = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
-				//cout << "Drawing line from " << pt0.x << "," << pt0.y << " to " << pt0.x << "," << pt0.y << endl;
-				if (histMatchVis) cvLine( histMatchVis, pt0, pt1, CV_RGB(rd,g,b), 1, CV_AA, 0 );	
-				cvLine( result, pt0, pt1, CV_RGB(rd,g,b), 3, CV_AA, 0 );	
-				pt0 = pt1;
-			}
-		}
+		// Draw a convex hull around found street-signs.
+                if (result)
+                        drawConvexHull(currentBlob,result,i);
 	}
 
 	// Cleanup

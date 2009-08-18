@@ -98,6 +98,8 @@ class SignFinder
 		IplImage* histMatch(IplImage* img, IplImage* vis=NULL);
 		void processSurf(IplImage* img);
 		CBlobResult classifyBlobs(CBlobResult& blobs, char* file, CvSize size, IplImage* vis=NULL);
+		string processBlob(CBlob* currentBlob, char* file, IplImage* result, int& prevY, IplImage* histMatchVis);
+		void drawConvexHull(CBlob* blob, IplImage* img, int i);
 		
 
 };
