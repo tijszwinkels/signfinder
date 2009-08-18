@@ -34,9 +34,10 @@ The detector might just work out of the box for you. If not, you might still be 
 Many other objects in a typical street-environment are white, not to mention a cloudy sky. Since right now only colors are used to segment street signs, I don't expect that the software will be able to segment white street signs correctly. Sorry.
 
 = Labeling Data =
-Have you gathered a sufficiently large and diverse dataset with pictures of street signs? good! - Now we have to tell the software which parts of the image contain street signs and which parts don't. This can be done with the '[maskMaker maskMaker]' program. Use as following:
+Have you gathered a sufficiently large and diverse dataset with pictures of street signs? good! - Now we have to tell the software which parts of the image contain street signs and which parts don't. This can be done with the '[maskMaker maskMaker]' program.
+Use as following:
   * load the image files on the command line. - For example, if your dataset resides in ~/dataset, you can do {{{./maskMaker ~/dataset/*.jpg}}}
-  * click the four corners of each of the street-signs in the image. After clicking four corners, the labeled part image should increase in brightness.
+  * click the four corners of each of the street-signs in the image. After clicking four corners, the labeled part image should get a white layer, as can be seen in the image.
   * press 's' to save the labeled images. - This creates a {{{<original file name>_mask.png}}} file containing a binary mask.
   * press 'n' to go to the next image. Don't forget to save first.
   * press 'q' to quit.
@@ -44,6 +45,9 @@ If you're not satisfied with the region that you've labeled, you can press 'z' t
 
 Remember, all pixels that aren't labeled as being a street-sign, are taken to be a negative sample. This means that any pixel that has the same color as a street-sign but isn't labeled as such, will actually decrease the likelihood that street-signs are detected correctly. For this reason, it's often a good idea to not label pictures that contains other traffic-signs. If you don't want a certain image to be used by the trainer, just don't save the label.
 Under no circumstance save the label without any signs marked, as this will cause the entire image to be considered a negative sample.
+
+[http://mirror.openstreetmap.nl/openstreetphoto/tijs/results/data/Screenshot-MaskMaker.png]
+
 
 = Training the Classifier =
 After the dataset has been labeled, the color histograms need to be trained. This can be done with the '[trainer]' program. The syntax is similar to maskMaker, just put the images to train on the command line. The trainer will find the {{{_mask.png}}} labels automatically.
