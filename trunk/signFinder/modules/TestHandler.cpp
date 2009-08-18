@@ -82,6 +82,10 @@ double compareMasks(IplImage* estimation, IplImage* label, double* _fp)
 	return tp;
 }
 
+/**
+ * Judges whether a blob corresponds to a known-correct label.
+ * @return bool whether blob has been detected correctly or not
+ */
 bool blobCorrect(IplImage* blob, IplImage* label, double numBlobs = 1)
 {
 	double fp;
@@ -119,7 +123,6 @@ void fillConvexHull(IplImage* img, CvSeq* hull, CvScalar color)
 /**
  * Fills an image with a convex hull around the pixels in a blob.
  */
- // FIXME: Memory mangement for CvSeq.
 void fillConvexHull(IplImage* img, CBlob* blob, CvScalar color)
 {
 	CvSeq* hull;
@@ -245,8 +248,7 @@ int compareText(string detected, char* imgfile)
 
 /* Support Functions */
 
-/* Computes the edit-distance or Levenshtein distance between two strings */
-
+/* Returns the minimum integer of three arguments */
 int min(int a, int b, int c)
 {
     if (a < b)
@@ -260,6 +262,7 @@ int min(int a, int b, int c)
         return c;
 }
 
+/* Computes the edit-distance or Levenshtein distance between two strings */
 int levenshtein(const char* a, const char* b)
 {
     int al = strlen(a);
@@ -292,6 +295,7 @@ int levenshtein(const char* a, const char* b)
     return matrix[al][bl];      
 }
 
+/* trims leading and trailing whitespaces from strings */
 string trim(string in)
 {
 	if (in == "")
