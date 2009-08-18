@@ -1,6 +1,5 @@
 #summary Overview of the internals of signFinder.
 #labels Featured,Phase-Implementation
-In Progress
 
 = System Overview =
 The following image describes the different modules in signFinder, and the data-flow between them.
