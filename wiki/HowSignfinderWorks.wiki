@@ -33,6 +33,13 @@ A list of blobs with their respective characteristics and whether they're accept
 
 The code to generate characteristics over blobs, display these, and filter them can be found in the {{{SignFinder::classifyBlobs()}}} function in signFinder.cpp . This function also compares detected blobs with known-correct labels in order to measure performance of the sign-detecting portion of the system. More about that in the last chapter of this document.
 
+Consider the following image:
+
+[http://mirror.openstreetmap.nl/openstreetphoto/tijs/results/data/DSC00180.JPG_blob_resized.jpg]
+
+This image shows the area's that have been matched with the histogram matcher in blue. Blobs that have been classified as containing street-signs are colored.
+These images are written in {{{<file>_blob.jpg}}} by the [signFinder] executable if the -v command-line option is used.
+
 == Convex Hull ==
 From the Blob classifier, we receive a list of blobs that we assume to contain a street-sign. However, a blob doesn't provide clear image-segmentation: It's not much more than a bunch of connected pixels, containing large holes or possibly being 'bitten out' in a part of the sign where the lighting is different.
 This is rectified by calculating the [http://en.wikipedia.org/wiki/Convex_hull convex hull] over the positively classified pixels in the blob. A convex hull is a line around the outer pixels of the detected blob, which doesn't form any sharp angle with the previous line segment. If the blob is of sufficient quality, the convex hull forms a nice line around the segmented street sign. This convex hull is the colored line drawn around the street-signs in the result image.
