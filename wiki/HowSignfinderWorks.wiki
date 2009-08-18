@@ -71,6 +71,10 @@ The software is employing these heuristics to improve OCR performance:
 These simple heuristics manage to catch the majority of common OCR mistakes. These simple heuristics live in the {{{removeOneCharWords()}}},{{{detectWrongCapitalI()}}} and {{{correctLidWoorden()}}} functions in the ./modules/OCRWrapper.cpp file.
 
 
+[http://openstreetphoto.org/data/tijs/intro_800.jpg]
+
+Image showing the colored convex hull, the yellow-marked found corners, the cut-out signs, and the OCRed text next to the upper-right found corner of the street signs.
+
 
 = Performance Measurement =
 If known-correct labels are present, signFinder automatically measures and reports its own performance. This is useful, as it allows us to quickly ascertain performance after changes in method, trainset, or testset. All performance-measurement specific code can be found in the ./modules/TestHandler.cpp source file.
