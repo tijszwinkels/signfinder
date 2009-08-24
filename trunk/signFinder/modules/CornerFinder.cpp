@@ -44,6 +44,7 @@ const bool _debug = false;
 
 using namespace std;
 
+/* Finds the corners in a binary mask, and writes them to the 'corner' CvPoint array. */
 int findCorners(IplImage* maskImg, CvPoint* corners, int numCorners, double distThr)
 {
 	CvPoint2D32f f_corners[numCorners];
@@ -60,24 +61,10 @@ int findCorners(IplImage* maskImg, CvPoint* corners, int numCorners, double dist
 	cvReleaseImage(&tmp2);
 	cvReleaseImage(&eigtmp);
 
-	// Find the upper left point.
-	double mindist = 1000000000;
-	int mindisti = -1;
-	CvPoint2D32f upperLeft = cvPoint2D32f(0,0);
-	//CvPoint2D32f upperLeft = cvPoint2D32f(maskImg->width, maskImg->height);
-	for (int i=0; i<numCorners; ++i)
-		if (pointDist(upperLeft, f_corners[i]) < mindist)
-		{
-			mindist = pointDist(upperLeft, f_corners[i]);
-			mindisti = i;
-			//printf("new minimum distance: %f,%d\n",mindist, mindisti);
-		}
-
 	// Convert the detected corners to CvPoints.
-	// make sure that the upper left corner is at the first position.
 	CvPoint foundcorners[numCorners];
 	for (int i=0; i<numCorners; ++i)
-		foundcorners[i] = cvPointFrom32f(f_corners[(i+mindisti) % numCorners]);
+		foundcorners[i] = cvPointFrom32f(f_corners[i]);
 
 	// create a convex hull of the points.
 	CvMemStorage* storage = cvCreateMemStorage();
@@ -86,18 +73,26 @@ int findCorners(IplImage* maskImg, CvPoint* corners, int numCorners, double dist
 		cvSeqPush(ptseq,&(foundcorners[i]));
 	CvSeq* hull = cvConvexHull2( ptseq, 0, CV_COUNTER_CLOCKWISE, 0 );
 
-	// order the points 
-	int corneri = 0;
-        for (int j=0; j< hull->total; ++j) //iterate through hullpoints.
-	{
-        	CvPoint pt = **CV_GET_SEQ_ELEM( CvPoint*, hull, j );
-		for (int corner=0; corner < numCorners; ++corner) //iterate through found corners.
+	// Push the convex-hull back to the array.
+	// The array is now ordered, but doesn't have a defined begin-point.
+	for (int i=0; i<numCorners; ++i)
+		foundcorners[i] = **CV_GET_SEQ_ELEM( CvPoint*, hull, i );
+
+	// Find the upper left point.
+	double mindist = 1000000000;
+	int mindisti = -1;
+	CvPoint upperLeft = cvPoint(0,0);
+	for (int i=0; i<numCorners; ++i)
+		if (pointDist(upperLeft, foundcorners[i]) < mindist)
 		{
-			CvPoint hullpt = findClosestConvexHullPoint(foundcorners[corner],hull);
-			if ((pt.x == hullpt.x) && (pt.y == hullpt.y))
-				corners[corneri++] = hullpt; // Snap corner to convex hull.
+			mindist = pointDist(upperLeft, foundcorners[i]);
+			mindisti = i;
+			//printf("new minimum distance: %f,%d\n",mindist, mindisti);
 		}
-	}
+
+	// Push results to the result-array with the upper-left point on index 0.
+	for (int i=0; i<numCorners; ++i)
+		corners[i] = foundcorners[(i+mindisti) % numCorners];
 
 	// Cleanup
 	cvClearMemStorage( storage );

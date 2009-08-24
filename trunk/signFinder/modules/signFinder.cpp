@@ -300,7 +300,7 @@ string SignFinder::processBlob(CBlob* currentBlob, char* file,  IplImage* result
 			cvResetImageROI(result);
 			cvRectangle(result,cvPoint(0,prevY),cvPoint(cut->width,prevY+cut->height),CV_RGB(0,0,0),2);	
 			// Add the text of the sign.
-			drawText(result,corners[3].x + 10, corners[3].y, text);
+			drawText(result,corners[1].x + 10, corners[1].y, text);
 		}
 		cvReleaseImage(&cut);
 	
