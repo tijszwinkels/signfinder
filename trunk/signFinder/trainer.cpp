@@ -41,8 +41,10 @@
 #include "OpenSURF/surflib.h"
 #include "SignHandler.h"
 #include "CornerFinder.h"
+#include "modules/TestHandler.h"
 
 #define SHOWIMAGES
+#define DEBUG 
 
 using namespace std;
 
@@ -59,8 +61,10 @@ CvHistogram* _posHist;
 CvHistogram* _negHist;
 IpVec _surfpoints;
 
-/* FIXME: Train properly of multiple labels in a train-image */
-void processSurf(IplImage* img, IplImage* mask)
+/*
+ * Train the SURF keypoints in the masked part of an image
+ */
+void processSingleSurf(IplImage* img, IplImage* mask)
 {
 	// find corners of sign.
 	const int numcorners = 4;
@@ -83,12 +87,37 @@ void processSurf(IplImage* img, IplImage* mask)
 	#ifdef SHOWIMAGES
 	drawIpoints(sign, ipts);
 	cvShowImage("trainer",sign);
+	cvWaitKey(1);
 	#endif
 
 	// Add detected SURF keypoints to global database.
 	_surfpoints.insert(_surfpoints.end(),ipts.begin(),ipts.end());
 
+	#ifdef DEBUG
+		printf("%d SURF keypoints so far.\n",_surfpoints.size());
+	#endif
+
 	cvReleaseImage(&sign);
+}
+
+/* Detect the separate masks in the mask image, and feed them one-by-one
+ * to the 'processSignleSurf' function*/
+void processSurf(IplImage* img, IplImage* mask)
+{
+	// Detect the blobs in the mask.
+	CBlobResult maskblobs = CBlobResult( mask, NULL, 0, false );
+	if (maskblobs.GetNumBlobs() > 5)
+		return;
+
+	// Make masks out of each of the blobs, and pass them on.
+	IplImage* newMask = cvCreateImage(cvGetSize(mask),IPL_DEPTH_8U, 1);
+	 for (int i = 0; i < maskblobs.GetNumBlobs(); ++i)
+	{
+		cvSet(newMask,cvScalar(0,0,0,0));
+		(maskblobs.GetBlob(i))->FillBlob(newMask,CV_RGB(255,255,255));
+		processSingleSurf(img,newMask);
+	}
+	cvReleaseImage(&newMask);
 }
 
 void processFile(char* file)
@@ -214,5 +243,6 @@ int main(int argc, char** argv)
 
 	cleanup();
 
+	cvWaitKey(1000);
 	return 0;
 }
