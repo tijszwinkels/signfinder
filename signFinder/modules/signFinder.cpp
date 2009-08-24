@@ -66,8 +66,8 @@ CBlobResult SignFinder::classifyBlobs(CBlobResult& blobs, char* file, CvSize siz
 	CBlobResult result;	
 
 	// Pre-filtering
-	// Surface > 1/600th image surface.
-	blobs.Filter( blobs, B_EXCLUDE, CBlobGetArea(), B_LESS, (size.width * size.height) / 600 );
+	// Surface > 1/450th image surface.
+	blobs.Filter( blobs, B_EXCLUDE, CBlobGetArea(), B_LESS, (size.width * size.height) / 450 );
 	
 	// Blobs not in contact with sides of image. 
 	blobs.Filter( blobs, B_EXCLUDE, CBlobGetMinX(), B_EQUAL, 0);
@@ -270,7 +270,12 @@ string SignFinder::processBlob(CBlob* currentBlob, char* file,  IplImage* result
 		// Find the corners with a distance-threshold between corners of 0.75* the height.
 		int numcorners = 4;
 		CvPoint corners[numcorners];
-		findCorners(*currentBlob,corners,numcorners,height*0.75);
+		int foundcorners = findCorners(*currentBlob,corners,numcorners,height*0.75);
+
+		// Ignore blobs where we didn't find four corners. These break code further on,
+		// and are not real signs nine out of ten times anyway.
+		if (foundcorners != numcorners)
+			return "";
 
 		// Cut the image out with perspective correction.
 		IplImage* cut = cutSign(result, corners, 4, true );
