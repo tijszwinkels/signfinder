@@ -148,7 +148,7 @@ IpVec loadIpVec(char* file)
 {
 	ifstream ifs(file);
 	IpVec ipv;
-	if (!ifs.bad())
+	if (ifs.good())
 	{
 		ifs >> ipv;
 		ifs.close();
